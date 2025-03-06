@@ -1,0 +1,53 @@
+{
+  "id": "<MODULE_ID>",
+  "title": "<MODULE_TITLE>",
+  "description": "<MODULE_DESCRIPTION>",
+  "version": "0.0.1",
+  "styles": ["dist/style.css"],
+  "esmodules": ["index.js"],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json",
+      "isDefault": true,
+      "flags": {}
+    }
+  ],
+  "packs": [],
+  "url": "https://round-table.games/",
+  "manifest": "https://github.com/geoidesic/foundryvtt-dnd5e-jump-calculator/releases/latest/download/module.json",
+  "download": "https://github.com/geoidesic/foundryvtt-dnd5e-jump-calculator/releases/latest/download/module.zip",
+  "authors": [
+    {
+      "name": "Noel da Costa",
+      "url": "https://www.arc2.co.uk",
+      "discord": "geoidesic",
+      "flags": {}
+    }
+  ],
+  "compatibility": {
+    "minimum": "11",
+    "verified": "11.315",
+    "maximum": "12"
+  },
+  "flags": {
+    "hotReload": {
+      "extensions": ["json"],
+      "paths": ["lang"]
+    }
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "3.0.0",
+          "verified": "3.1.0",
+          "maximum": "4"
+        }
+      }
+    ]
+  }
+}
