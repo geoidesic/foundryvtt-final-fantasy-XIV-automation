@@ -1,7 +1,7 @@
-import { MODULE_ID } from '../helpers/constants';
+import { MODULE_ID } from '~/src/helpers/constants';
+import { log } from '~/src/helpers/utility';
 
-
-export function registerSettings(app): void {
+export function registerSettings(app) {
   log.i("Building module settings");
 
   /** World Settings */

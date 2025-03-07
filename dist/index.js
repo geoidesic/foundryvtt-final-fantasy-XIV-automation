@@ -12170,7 +12170,7 @@ cssVariables.setProperties({
   // TJSApplicationShell app background.
   "--tjs-app-background": `url("${globalThis.foundry.utils.getRoute("/ui/denim075.png")}")`
 }, false);
-const MODULE_ID = "foundryvtt-final-fantasy-xiv-automation";
+const MODULE_ID = "foundryvtt-final-fantasy-XIV-automation";
 const MODULE_TITLE = "Final Fantasy XIV Automation";
 const LOG_PREFIX = "FFXIV [Automation] |";
 function create_default_slot(ctx) {

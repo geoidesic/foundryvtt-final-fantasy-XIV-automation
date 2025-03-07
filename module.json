@@ -1,5 +1,5 @@
 {
-  "id": "foundryvtt-final-fantasy-xiv-automation",
+  "id": "foundryvtt-final-fantasy-XIV-automation",
   "title": "Final Fantasy XIV Automation",
   "description": "Automation for Final Fantasy XIV",
   "version": "0.0.1",
@@ -16,8 +16,8 @@
   ],
   "packs": [],
   "url": "https://round-table.games/",
-  "manifest": "https://github.com/geoidesic/foundryvtt-final-fantasy-xiv-automation/releases/latest/download/module.json",
-  "download": "https://github.com/geoidesic/foundryvtt-final-fantasy-xiv-automation/releases/latest/download/module.zip",
+  "manifest": "https://github.com/geoidesic/foundryvtt-final-fantasy-XIV-automation/releases/latest/download/module.json",
+  "download": "https://github.com/geoidesic/foundryvtt-final-fantasy-XIV-automation/releases/latest/download/module.zip",
   "authors": [
     {
       "name": "Noel da Costa",
