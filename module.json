@@ -1,7 +1,7 @@
 {
-  "id": "<MODULE_ID>",
-  "title": "<MODULE_TITLE>",
-  "description": "<MODULE_DESCRIPTION>",
+  "id": "foundryvtt-final-fantasy-xiv-automation",
+  "title": "Final Fantasy XIV Automation",
+  "description": "Automation for Final Fantasy XIV",
   "version": "0.0.1",
   "styles": ["dist/style.css"],
   "esmodules": ["index.js"],
@@ -16,8 +16,8 @@
   ],
   "packs": [],
   "url": "https://round-table.games/",
-  "manifest": "https://github.com/geoidesic/foundryvtt-dnd5e-jump-calculator/releases/latest/download/module.json",
-  "download": "https://github.com/geoidesic/foundryvtt-dnd5e-jump-calculator/releases/latest/download/module.zip",
+  "manifest": "https://github.com/geoidesic/foundryvtt-final-fantasy-xiv-automation/releases/latest/download/module.json",
+  "download": "https://github.com/geoidesic/foundryvtt-final-fantasy-xiv-automation/releases/latest/download/module.zip",
   "authors": [
     {
       "name": "Noel da Costa",
@@ -27,8 +27,8 @@
     }
   ],
   "compatibility": {
-    "minimum": "11",
-    "verified": "11.315",
+    "minimum": "12",
+    "verified": "12",
     "maximum": "12"
   },
   "flags": {
@@ -40,12 +40,12 @@
   "relationships": {
     "systems": [
       {
-        "id": "dnd5e",
+        "id": "foundryvtt-final-fantasy",
         "type": "system",
         "compatibility": {
-          "minimum": "3.0.0",
-          "verified": "3.1.0",
-          "maximum": "4"
+          "minimum": "0.0.1",
+          "verified": "1",
+          "maximum": "1"
         }
       }
     ]

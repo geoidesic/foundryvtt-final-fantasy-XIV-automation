@@ -1,7 +1,7 @@
-import '../styles/Variables.scss'; // Import any styles as this includes them in the build.
-import '../styles/init.scss'; // Import any styles as this includes them in the build.
+import '~/src/styles/Variables.scss'; // Import any styles as this includes them in the build.
+import '~/src/styles/init.scss'; // Import any styles as this includes them in the build.
 
-import WelcomeApplication from '~src/components/pages/WelcomeApplication.js';
+import WelcomeApplication from '~/src/components/pages/WelcomeApplication.js';
 import { MODULE_ID } from '~/src/helpers/constants';
 import { log } from '~/src/helpers/utility';
 import { registerSettings } from '~/src/settings';

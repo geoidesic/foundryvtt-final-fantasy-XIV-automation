@@ -32,7 +32,10 @@
 <template lang="pug">
   ApplicationShell(bind:elementRoot)
     main
-      p Welcome
+      p This module provides automation for Final Fantasy XIV combat.
+      p It is currently in development and not all actions are automated. If you wish to support the development of this module, please consider a monthly donation via <a href="https://github.com/sponsors/geoidesic">GitHub Sponsors</a>.
+      p Current version: {version}
+      p
     footer
       p {MODULE_TITLE} is sponsored by 
       a(href="https://www.round-table.games") Round Table Games
@@ -40,10 +43,9 @@
 </template>
 
 <style lang="sass">
-  @import "../../../styles/Mixins.scss"
-
+  @use "../../styles/Mixins.scss" as mixins
   main
-    @include inset
+    @include mixins.inset
     overflow-y: auto
     margin-bottom: 5em
 
