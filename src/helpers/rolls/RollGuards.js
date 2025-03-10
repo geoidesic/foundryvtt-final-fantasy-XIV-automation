@@ -24,6 +24,7 @@ export default class RollGuards extends CONFIG.FFXIV.RollGuards {
    * @param {Actor} actor - The actor to check guards for
    */
   constructor(actor) {
+    super();
     this.actor = actor;
   }
 
