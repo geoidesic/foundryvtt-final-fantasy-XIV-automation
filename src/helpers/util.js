@@ -1,5 +1,5 @@
 
-import { LOG_PREFIX, MODULE_ID } from "~/src/helpers/constants"
+import { LOG_PREFIX, MODULE_CODE } from "~/src/helpers/constants"
 
 export const log = {
   ASSERT: 1, ERROR: 2, WARN: 3, INFO: 4, DEBUG: 5, VERBOSE: 6,
@@ -87,3 +87,51 @@ export function decodeUuidString(uuid) {
 }
 
 export const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+/**
+ * Gets a localized string
+ * @param {string} string - The string to localize
+ * @return {string} The localized string
+ */
+export function localize(string) {
+  return game.i18n.localize(`${MODULE_CODE}.${string}`);
+}
+
+/**
+ * Check if an effect has the enabler tag
+ * @param {ActiveEffect} effect - The effect to check
+ * @return {boolean} - Whether the effect has the enabler tag
+ */
+export function isEnablerEffect(effect) {
+  return effect?.system?.tags?.includes('enabler') ?? false;
+}
+
+/**
+ * Resets the action state (or slots) for an actor. 
+ * This is used to reset the action slots for an actor, e.g when they enter combat.
+ * @todo probably should be moved to Actor class
+ * @param {Actor} actor The actor to reset
+ * @return {Promise<void>} A promise that resolves when the actor is updated
+ */
+export const resetActionState = async (actor) => {
+  // Reset action state
+  const baseActions = ['primary', 'secondary'];
+  const extraActions = actor.statuses.has('focus') ? ['secondary'] : [];
+
+  await actor.update({
+    'system.actionState': {
+      available: [...baseActions, ...extraActions],
+      used: []
+    }
+  });
+};
+
+/**
+ * Resets uses for a collection of items
+ * @param {Item[]} items The items to reset
+ * @return {Promise<void>} A promise that resolves when all items are updated
+ */
+export const resetUses = async (items) => {
+  for (const item of items) {
+    await item.update({ system: { uses: 0 } });
+  }
+}

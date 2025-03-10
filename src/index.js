@@ -1,34 +1,19 @@
-import './styles/Main.sass';
+import '~/src/styles/Main.sass';
 
-import FFXIVActor from '~/src/extensions/actor.js'
-import FFXIVItem from '~/src/extensions/item.js'
-import FFActiveEffect from "~/src/extensions/active-effect.js"
-import FFEffectModel from "~/src/models/ActiveEffectModel.js"
-import FFToken from "~/src/extensions/token.js"
-import FFCombat from './extensions/combat.js'
-import FFCombatant from './extensions/combatant.js'
+import FFACombat from './extensions/combat.js'
 import RollGuards from "~/src/helpers/rolls/RollGuards";
 import hooks from "~/src/hooks";
 import { getTokenMovement, addTokenMovement } from '~/src/stores';
 
-/* eslint-disable-next-line no-unused-vars */
-import { setupDSN } from "~/src/helpers/dsnSetup.js";
 
 //- debug hooks
 // CONFIG.debug.hooks = true;
 
 //- Foundry Class Extensions
-CONFIG.Actor.documentClass = FFXIVActor
-CONFIG.Item.documentClass = FFXIVItem
-CONFIG.Combat.documentClass = FFCombat
-CONFIG.Combatant.documentClass = FFCombatant
-CONFIG.Token.objectClass = FFToken
-CONFIG.ActiveEffect.documentClass = FFActiveEffect
-CONFIG.ActiveEffect.dataModels.base = FFEffectModel
+CONFIG.Combat.documentClass = FFACombat
 
-CONFIG.FFXIV = {
-  RollGuards: RollGuards
-}
+//- Override the standard FFXIVroll guards with an extension for automation
+CONFIG.FFXIV.RollGuards = RollGuards;
 
 //- Foundry game Hooks
 hooks.init();

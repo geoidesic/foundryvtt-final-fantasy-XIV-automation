@@ -43,7 +43,7 @@
 </template>
 
 <style lang="sass">
-  @use "../../styles/Mixins.scss" as mixins
+  @use "../../styles/Mixins.sass" as mixins
   main
     @include mixins.inset
     overflow-y: auto

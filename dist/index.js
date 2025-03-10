@@ -1,3 +1,441 @@
+const MODULE_ID = "foundryvtt-final-fantasy-XIV-automation";
+const MODULE_TITLE = "Final Fantasy XIV Automation";
+const MODULE_CODE = "FFXIVA";
+const SYSTEM_ID = "foundryvtt-final-fantasy";
+const ACTIVE_EFFECT_MODES = {
+  CUSTOM: 0
+};
+function localize$2(string) {
+  return game.i18n.localize(`${MODULE_CODE}.${string}`);
+}
+const resetActionState = async (actor) => {
+  const baseActions = ["primary", "secondary"];
+  const extraActions = actor.statuses.has("focus") ? ["secondary"] : [];
+  await actor.update({
+    "system.actionState": {
+      available: [...baseActions, ...extraActions],
+      used: []
+    }
+  });
+};
+const resetUses = async (items) => {
+  for (const item of items) {
+    await item.update({ system: { uses: 0 } });
+  }
+};
+const BaseFFCombat = eval("CONFIG?.Combat?.documentClass") || class {
+};
+class FFCombat extends BaseFFCombat {
+  /**
+   * Initialize the combat instance
+   * @param {object} data - The combat data
+   * @param {object} context - The initialization context
+   */
+  constructor(data, context) {
+    super(data, context);
+  }
+  /**
+   * Returns true if the current turn represents the end of the adventurer step
+   * (i.e., if the current turn is the last PC and the next turn is an NPC)
+   * @type {boolean}
+   */
+  get isAdventurerStepEnd() {
+    if (!this.started || this.turn === null) return false;
+    const currentCombatant = this.turns[this.turn];
+    const nextCombatant = this.turns[this.turn + 1];
+    return currentCombatant?.actor?.type === "PC" && nextCombatant?.actor?.type === "NPC";
+  }
+  /**
+   * Returns true if the current turn represents the end of the enemy step
+   * (i.e., if the current turn is the last NPC and the next turn is a PC or the round ends)
+   * @type {boolean}
+   */
+  get isEnemyStepEnd() {
+    if (!this.started || this.turn === null) return false;
+    const currentCombatant = this.turns[this.turn];
+    const nextCombatant = this.turns[this.turn + 1];
+    return currentCombatant?.actor?.type === "NPC" && (!nextCombatant || nextCombatant?.actor?.type === "PC");
+  }
+  /**
+   * Reset abilities and states, action slots, and effects for all combatants
+   * @return {Promise<void>} Returns a promise that resolves when all combatants have been reset
+   */
+  async resetCombatantAbilities() {
+    const persistentConditions = ["ko", "dead", "comatose", "brink"];
+    const combatants = this.combatants.contents;
+    for (const combatant of combatants) {
+      const actor = combatant.actor;
+      if (!actor) continue;
+      const items = actor.items.filter((i) => i.system.hasLimitation);
+      await resetUses(items);
+      for (const effect of actor.effects) {
+        if (effect.isTransferred) {
+          await effect.update({ disabled: true });
+        } else {
+          if (effect.statuses?.some((status) => persistentConditions.includes(status))) {
+            continue;
+          }
+          await effect.delete();
+        }
+      }
+      await resetActionState(actor);
+    }
+  }
+}
+class RollGuards extends CONFIG.FFXIV.RollGuards {
+  /** @type {Actor} The actor associated with these roll guards */
+  actor;
+  /** 
+   * Shuttle object used to pass data from guards to roll calculator
+   * @type {Object} 
+   */
+  shuttle = {
+    hasModifiers: {
+      extraModifiers: null
+    }
+  };
+  /**
+   * Create a new RollGuards instance
+   * @param {Actor} actor - The actor to check guards for
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Check if the item is an action
+   * @param {Item} item - The item to check
+   * @return {Promise<boolean>} Whether the item is an action
+   */
+  async isAction(item) {
+    return item.type === "action";
+  }
+  /**
+   * Check if there is an active combat
+   * @return {Promise<boolean>} Whether there is an active combat
+   */
+  async isCombat() {
+    return game.combat;
+  }
+  /**
+   * Check if there are valid targets selected
+   * @param {Item} item - The item being used
+   * @return {Promise<boolean>} Whether there are valid targets
+   */
+  async hasTargets(item) {
+    const targets = game.user.targets;
+    const hasTargets = targets.size > 0;
+    if (!hasTargets) {
+      ui.notifications.warn(`${item.name} has no targets. Please select targets and roll again.`);
+      return false;
+    }
+    return true;
+  }
+  /**
+   * Check if the selected targets match the action's targeting requirements
+   * @param {Item} item - The item being used
+   * @return {Promise<boolean>} Whether the targets match the requirements
+   */
+  async targetsMatchActionIntent(item) {
+    const target = item.system.target;
+    const targets = game.user.targets;
+    const size = targets.size;
+    const originalTargets = new Set(game.user.targets);
+    let token;
+    try {
+      if (target === "self") {
+        token = this.actor.activeToken;
+        if (!token) {
+          ui.notifications.warn("No token found for self-targeting");
+          return false;
+        }
+        await token.setTarget(true, { user: game.user, releaseOthers: true });
+        return true;
+      }
+      switch (target) {
+        case "single":
+          if (size !== 1) {
+            ui.notifications.warn("This ability requires exactly one target");
+            return false;
+          }
+          token = this.actor.activeToken;
+          if (targets.has(token)) {
+            ui.notifications.warn("This ability cannot target yourself");
+            return false;
+          }
+          break;
+        case "enemy":
+          if (size < 1) {
+            ui.notifications.warn("This ability requires at least one enemy target");
+            return false;
+          }
+          token = this.actor.activeToken;
+          if (targets.has(token)) {
+            ui.notifications.warn("This ability cannot target yourself");
+            return false;
+          }
+          break;
+        case "ally":
+          if (size < 1) {
+            ui.notifications.warn("This ability requires at least one ally target");
+            return false;
+          }
+          break;
+        case "all":
+          if (size < 1) {
+            ui.notifications.warn("This ability requires at least one target");
+            return false;
+          }
+          break;
+      }
+      return true;
+    } catch (error) {
+      game.system.log.e("Error in targetsMatchActionIntent:", error);
+      return false;
+    } finally {
+      if (target !== "self" && originalTargets.size > 0) {
+        game.user.targets.forEach((t) => t.setTarget(false, { user: game.user, releaseOthers: false }));
+        originalTargets.forEach((t) => t.setTarget(true, { user: game.user, releaseOthers: false }));
+      }
+    }
+  }
+  /**
+   * Check if the item has remaining uses available
+   * @param {Item} item - The item to check
+   * @return {Promise<boolean>} Whether the item has uses remaining
+   */
+  async hasRemainingUses(item) {
+    if (item.system.hasLimitation && game.combat) {
+      const maxUses = item.system.limitation;
+      const remainingUses = maxUses - (item.system.uses || 0);
+      if (remainingUses <= 0) {
+        ui.notifications.warn(`${item.name} has no remaining uses.`);
+        return false;
+      }
+      const confirmed = await Dialog.confirm({
+        title: "Confirm Ability Use",
+        content: `<p>Use ${item.name}? (${remainingUses} use${remainingUses > 1 ? "s" : ""} remaining)</p>`,
+        yes: () => true,
+        no: () => false,
+        defaultYes: true
+      });
+      if (!confirmed) return false;
+      const systemData = foundry.utils.deepClone(item.system);
+      systemData.uses = (systemData.uses || 0) + 1;
+      await item.update({ system: systemData });
+    }
+    return true;
+  }
+  /**
+   * Check and handle any modifiers for the roll
+   * @param {Item} item - The item being used
+   * @return {Promise<boolean>} Whether modifiers were successfully handled
+   */
+  async hasModifiers(item) {
+    if (!item.system.hasCR) {
+      return true;
+    }
+    this.shuttle.hasModifiers.extraModifiers = await this._showModifierDialog(item);
+    if (!this.shuttle.hasModifiers.extraModifiers?.confirmed) {
+      for (const effect of this.actor.effects) {
+        if (effect.getFlag(SYSTEM_ID, "pendingDeletion")) {
+          await effect.unsetFlag(SYSTEM_ID, "pendingDeletion");
+        }
+      }
+      return false;
+    }
+    for (const effect of this.actor.effects) {
+      if (effect.getFlag(SYSTEM_ID, "pendingDeletion")) {
+        await effect.delete();
+      }
+    }
+    Hooks.call("FFXIV.processTargetRollAdditionalModifiers", { item, extraModifiers: this.shuttle.hasModifiers.extraModifiers, actor: this.actor });
+    return true;
+  }
+  /**
+   * Check if the item has any enablers
+   * @param {Item} item - The item to check
+   * @return {Promise<boolean>} Whether the item has enablers
+   */
+  async hasEnablers(item) {
+    if (!game.combat || !item.system.enables?.value) {
+      return false;
+    }
+    const enablesList = item.system.enables.list;
+    if (!enablesList?.length) {
+      return false;
+    }
+    return true;
+  }
+  /**
+   * Check if there is an appropriate action slot available
+   * @param {Item} item - The item to check
+   * @return {Promise<boolean>} Whether an enabler slot is available
+   */
+  async hasAvailableActionSlot(item) {
+    if (item.system.type === "reaction") return true;
+    const { actionState } = this.actor.system;
+    const actionType = item.system.type || "primary";
+    game.system.log.cyan("[SLOT:USAGE] Checking available action slot:", actionType);
+    const enablerSlots = actionState.available.filter(
+      (slot) => slot !== "primary" && slot !== "secondary"
+    );
+    game.system.log.cyan("[SLOT:USAGE] Enabler slots:", enablerSlots);
+    if (item.system.tags?.some((tag) => enablerSlots.includes(tag))) {
+      return true;
+    }
+    game.system.log.cyan("[SLOT:USAGE] No enabler slots match:", item.system.tags);
+    if (actionState.available.includes(actionType)) {
+      return true;
+    }
+    game.system.log.cyan("[SLOT:USAGE] No matching action slot:", actionType);
+    if (actionType === "secondary" && actionState.available.filter((slot) => slot === "secondary" || slot === "primary").length) {
+      return true;
+    }
+    game.system.log.cyan("[SLOT:USAGE] No matching action slot:", actionType);
+    if (await this.hasEnablers(item)) {
+      const enabledEffects = this.actor.effects.filter(
+        (effect) => effect.system.tags?.includes("enabler")
+      );
+      game.system.log.cyan("[SLOT:USAGE] Enabled effects:", enabledEffects);
+      if (enabledEffects?.length) {
+        const enabledEffectsLinkedToEnablerSlots = enabledEffects.filter(
+          (effect) => enablerSlots.some((slot) => {
+            const originItem = fromUuidSync(effect.origin);
+            return originItem?.system.tags?.includes(slot);
+          })
+        );
+        if (enabledEffectsLinkedToEnablerSlots.length) {
+          return true;
+        }
+      }
+    }
+    const msg = localize$2("Types.Item.Types.action.SlotNotAvailable").replace("%s", actionType);
+    ui.notifications.warn(msg);
+    return false;
+  }
+  /**
+   * Check if the item matches any enabler effects
+   * @param {Item} item - The item to check
+   * @return {Promise<boolean>} Whether the item matches enabler effects
+   */
+  async matchesEnablerEffect(item) {
+    return this.actor.itemTagsMatchEnablerEffectTags(item);
+  }
+  /**
+   * Check if the actor has all required effects for the item
+   * @param {Item} item - The item to check
+   * @return {Promise<boolean>} Whether all required effects are present
+   */
+  async hasRequiredEffects(item) {
+    if (!item.system.requires?.value) {
+      return true;
+    }
+    for (const requireRef of item.system.requires.list) {
+      const requiredItem = await fromUuid(requireRef.uuid);
+      if (!requiredItem) continue;
+      let hasActiveEffect = false;
+      for (const effect of this.actor.effects) {
+        if (effect.name === requiredItem.name) {
+          hasActiveEffect = true;
+          await effect.setFlag(SYSTEM_ID, "pendingDeletion", true);
+          break;
+        }
+      }
+      if (!hasActiveEffect) {
+        ui.notifications.warn(game.i18n.format("FFXIV.Warnings.RequiredEffectNotActive", { name: requiredItem.name }));
+        return false;
+      }
+    }
+    return true;
+  }
+  /**
+   * Check if it is currently the actor's turn
+   * @param {Item} item - The item being used
+   * @return {Promise<boolean>} Whether it is the actor's turn
+   */
+  async isActorsTurn(item) {
+    if (!game.combat) return true;
+    const currentCombatant = game.combat.combatant;
+    if (!currentCombatant) return true;
+    if (item.system.type === "reaction") return true;
+    const isCurrentTurn = currentCombatant.actor.id === this.actor.id;
+    if (!isCurrentTurn) {
+      ui.notifications.warn("Cannot use this action outside of your turn.");
+    }
+    return isCurrentTurn;
+  }
+  /**
+   * Check if the item is a reaction
+   * @param {Item} item - The item to check
+   * @return {Promise<boolean>} Whether the item is a reaction
+   */
+  async isReaction(item) {
+    if (item.system.type !== "reaction") return true;
+    if (!game.combat) return true;
+    const actionState = this.actor.system.actionState;
+    if (actionState.usedReaction) {
+      ui.notifications.warn("Cannot use multiple reactions in the same turn.");
+      return false;
+    }
+    return true;
+  }
+  /**
+   * Check if there is an available action slot for the item
+   * @param {Item} item - The item to check
+   * @return {Promise<boolean>} Whether an action slot is available
+   */
+  async hasAvailableSlot(item) {
+    if (item.system.type === "reaction") return true;
+    const actionState = this.actor.system.actionState;
+    const available = actionState.available || [];
+    const actionType = item.system.type;
+    const hasSlot = available.includes(actionType);
+    if (!hasSlot) {
+      ui.notifications.warn(`No ${actionType} action slot available.`);
+    }
+    return hasSlot;
+  }
+  /**
+   * Check if there are any unapplied damage results in chat messages
+   * @param {Item} item - The item being used
+   * @return {Promise<boolean>} Whether there are no unapplied damage results
+   */
+  async hasNoUnappliedDamage(item) {
+    if (!item.system.baseEffectDamage && !item.system.directHitDamage) return true;
+    const messages = game.messages.filter((m) => {
+      const data = m.flags?.[SYSTEM_ID]?.data;
+      return data?.chatTemplate === "ActionRollChat" && (data?.item?.system?.baseEffectDamage || data?.item?.system?.directHitDamage);
+    });
+    for (const message of messages) {
+      const state = message.flags?.[SYSTEM_ID]?.state;
+      if (!state?.damageResults) continue;
+      const hasUnappliedDamage = Object.values(state.damageResults).some((result) => !result.applied);
+      if (hasUnappliedDamage) {
+        ui.notifications.warn("There are unapplied damage results in chat. Please apply or undo them before making another action roll.");
+        return false;
+      }
+    }
+    return true;
+  }
+  /**
+   * Check if the actor has enough MP to use the action
+   * @param {Item} item - The item being used
+   * @return {Promise<boolean>} Whether the actor has enough MP
+   */
+  async meetsMPCost(item) {
+    if (!item.system.hasCostMP || !item.system.costMP) {
+      return true;
+    }
+    let currentMP;
+    currentMP = this.actor.system.points.MP.val;
+    const cost = item.system.costMP;
+    if (currentMP < cost) {
+      ui.notifications.warn(`Not enough MP to use ${item.name}. Required: ${cost} MP, Current: ${currentMP} MP`);
+      return false;
+    }
+    return true;
+  }
+}
 function noop() {
 }
 const identity = (x) => x;
@@ -708,7 +1146,7 @@ function make_dirty(component, i) {
   }
   component.$$.dirty[i / 31 | 0] |= 1 << i % 31;
 }
-function init(component, options, instance2, create_fragment2, not_equal, props, append_styles = null, dirty = [-1]) {
+function init$1(component, options, instance2, create_fragment2, not_equal, props, append_styles = null, dirty = [-1]) {
   const parent_component = current_component;
   set_current_component(component);
   const $$ = component.$$ = {
@@ -812,6 +1250,888 @@ class SvelteComponent {
   }
 }
 const PUBLIC_VERSION = "4";
+const subscriber_queue = [];
+function readable(value, start) {
+  return {
+    subscribe: writable(value, start).subscribe
+  };
+}
+function writable(value, start = noop) {
+  let stop;
+  const subscribers = /* @__PURE__ */ new Set();
+  function set(new_value) {
+    if (safe_not_equal(value, new_value)) {
+      value = new_value;
+      if (stop) {
+        const run_queue = !subscriber_queue.length;
+        for (const subscriber of subscribers) {
+          subscriber[1]();
+          subscriber_queue.push(subscriber, value);
+        }
+        if (run_queue) {
+          for (let i = 0; i < subscriber_queue.length; i += 2) {
+            subscriber_queue[i][0](subscriber_queue[i + 1]);
+          }
+          subscriber_queue.length = 0;
+        }
+      }
+    }
+  }
+  function update2(fn) {
+    set(fn(value));
+  }
+  function subscribe2(run2, invalidate = noop) {
+    const subscriber = [run2, invalidate];
+    subscribers.add(subscriber);
+    if (subscribers.size === 1) {
+      stop = start(set, update2) || noop;
+    }
+    run2(value);
+    return () => {
+      subscribers.delete(subscriber);
+      if (subscribers.size === 0 && stop) {
+        stop();
+        stop = null;
+      }
+    };
+  }
+  return { set, update: update2, subscribe: subscribe2 };
+}
+function derived(stores, fn, initial_value) {
+  const single = !Array.isArray(stores);
+  const stores_array = single ? [stores] : stores;
+  if (!stores_array.every(Boolean)) {
+    throw new Error("derived() expects stores as input, got a falsy value");
+  }
+  const auto = fn.length < 2;
+  return readable(initial_value, (set, update2) => {
+    let started = false;
+    const values = [];
+    let pending = 0;
+    let cleanup = noop;
+    const sync = () => {
+      if (pending) {
+        return;
+      }
+      cleanup();
+      const result = fn(single ? values[0] : values, set, update2);
+      if (auto) {
+        set(result);
+      } else {
+        cleanup = is_function(result) ? result : noop;
+      }
+    };
+    const unsubscribers = stores_array.map(
+      (store, i) => subscribe(
+        store,
+        (value) => {
+          values[i] = value;
+          pending &= ~(1 << i);
+          if (started) {
+            sync();
+          }
+        },
+        () => {
+          pending |= 1 << i;
+        }
+      )
+    );
+    started = true;
+    sync();
+    return function stop() {
+      run_all(unsubscribers);
+      cleanup();
+      started = false;
+    };
+  });
+}
+const mappedGameTargets = writable(false);
+const tokenMovement = /* @__PURE__ */ new Map();
+const getTokenMovement = (tokenId) => tokenMovement.get(tokenId) || 0;
+const addTokenMovement = (tokenId, distance) => {
+  const current = getTokenMovement(tokenId);
+  tokenMovement.set(tokenId, current + distance);
+};
+const resetTokenMovement = (tokenId) => {
+  tokenMovement.set(tokenId, 0);
+};
+class PrimaryBaseDamageBuff {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the primary base damage buff effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    const effects2 = this.actor.effects.filter((e) => !e.disabled);
+    for (const effect of effects2) {
+      const origin = await fromUuid(effect.origin);
+      for (const change of effect.changes) {
+        if (change.key === "PrimaryBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+          for (const [tokenId, targetData] of event.DamageResults) {
+            targetData.damage;
+            targetData.damage = parseInt(targetData.damage) + parseInt(change.value);
+            targetData.baseDamageFormula += ` + ${origin.name} (${change.value})`;
+          }
+        }
+      }
+    }
+  }
+}
+class AbilityBaseDamageBuff {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the primary base damage buff effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    const { DamageResults } = event;
+    game.system.log.o("[ABILITY DAMAGE BUFF] Processing ability base damage buff effect", {
+      DamageResults,
+      actorEffects: this.actor.effects
+    });
+    for (const effect of this.actor.effects) {
+      const origin = fromUuidSync(effect.origin);
+      game.system.log.o("[ABILITY DAMAGE BUFF] Processing effect:", {
+        effect,
+        origin,
+        changes: effect.changes
+      });
+      for (const change of effect.changes) {
+        game.system.log.o("[ABILITY DAMAGE BUFF] Checking change:", {
+          key: change.key,
+          mode: change.mode,
+          value: change.value,
+          matches: change.key === "AbilityBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM
+        });
+        if (change.key === "AbilityBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+          for (const [tokenId, targetData] of DamageResults) {
+            const oldDamage = targetData.damage;
+            targetData.damage = parseInt(targetData.damage) + parseInt(change.value);
+            targetData.baseDamageFormula += ` + ${origin.name} (${change.value})`;
+            game.system.log.o("[ABILITY DAMAGE BUFF] Applied damage buff:", {
+              tokenId,
+              oldDamage,
+              newDamage: targetData.damage,
+              addedValue: change.value
+            });
+          }
+        }
+      }
+    }
+  }
+}
+class DamageDiceReroll {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the damage dice reroll effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    game.system.log.o("[DAMAGE DICE REROLL] Processing damage dice reroll effect");
+    const { DamageResults, isCritical } = event;
+    if (!DamageResults || !DamageResults.size) {
+      game.system.log.w("[DAMAGE DICE REROLL] No damage results found");
+      return;
+    }
+    for (const effect of this.actor.effects) {
+      if (effect.disabled || effect.isSuppressed) continue;
+      fromUuidSync(effect.origin);
+      for (const change of effect.changes) {
+        if (change.key === "DamageDiceReroll" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+          for (const [targetId, targetData] of DamageResults) {
+            game.system.log.o("[DAMAGE DICE REROLL] Target data:", {
+              targetId,
+              targetData
+            });
+            if (!targetData.directHit) continue;
+            const [numDice, dieType] = targetData.directHit.split("d").map(Number);
+            if (!numDice || !dieType) continue;
+            const additionalDice = Number(change.value) || 1;
+            const newNumDice = numDice + additionalDice;
+            game.system.log.o("[DAMAGE DICE REROLL] New number of dice:", {
+              newNumDice
+            });
+            const kh = numDice;
+            targetData.directHit = `${newNumDice}d${dieType}kh${kh}`;
+            targetData.directHitFormula = targetData.directHit;
+            const parts = [];
+            parts.push(`1D${dieType}`);
+            if (isCritical) {
+              parts.push("CRITICAL");
+            }
+            parts.push(effect.name.toUpperCase());
+            targetData.directHitDisplayFormula = `(${parts.join(" + ")})`;
+          }
+        }
+      }
+    }
+  }
+}
+class TransferEffectToAllies {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Delete transferred effects from allies
+   * @param {object} event - The event containing effect data
+   * @return {Promise<void>} Returns a promise that resolves when the effects have been deleted
+   */
+  async delete(event) {
+    const { effect } = event;
+    const transferredEffects = game.actors.reduce((acc, actor) => {
+      return acc.concat(actor.effects.filter(
+        (e) => e.getFlag(SYSTEM_ID, "transferredBy.actor.uuid") === this.actor.uuid && e.name === effect.name
+      ));
+    }, []);
+    game.system.log.p("[EFFECT] Removing transferredEffects", transferredEffects);
+    game.system.log.p("[EFFECT] Removing transferred effects for", effect.name);
+    for (const transferredEffect of transferredEffects) {
+      await transferredEffect.delete();
+    }
+  }
+  /**
+   * Process the transfer effect to allies
+   * @param {object} event - The event containing effect data
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    game.system.log.p("[TRANSFER] Starting effect transfer process", event);
+    const { effect } = event;
+    game.system.log.p("[TRANSFER] Source actor:", this.actor.name);
+    game.system.log.p("[TRANSFER] Effect:", effect);
+    const stackingBehavior = effect.getFlag(SYSTEM_ID, "stackable") || "differentSource";
+    for (const token of this.actor.allyTokens) {
+      game.system.log.p("[TRANSFER] Processing token:", token.name);
+      if (!token.actor) {
+        game.system.log.p("[TRANSFER] No actor for token, skipping");
+        continue;
+      }
+      if (stackingBehavior === "replaces") {
+        const existingEffects = token.actor.effects.filter((e) => e.name === effect.name);
+        game.system.log.p("[TRANSFER] Found existing effects to replace:", existingEffects.length);
+        for (const existingEffect of existingEffects) {
+          game.system.log.p("[TRANSFER] Removing existing effect for replacement:", existingEffect.name);
+          await existingEffect.delete();
+        }
+      }
+      const effectData = {
+        name: effect.name,
+        img: effect.img,
+        changes: foundry.utils.deepClone(effect.changes),
+        flags: foundry.utils.deepClone(effect.flags),
+        origin: effect.origin,
+        disabled: false
+      };
+      game.system.log.p("[TRANSFER] Original effect flags:", effect.flags);
+      game.system.log.p("[TRANSFER] Cloned effect flags:", effectData.flags);
+      effectData.flags[SYSTEM_ID] = {
+        ...effectData.flags[SYSTEM_ID],
+        transferredBy: {
+          actor: {
+            uuid: this.actor.uuid,
+            name: this.actor.name,
+            img: this.actor.img
+          }
+        }
+      };
+      game.system.log.p("[TRANSFER] Final effect flags after origin update:", effectData.flags);
+      try {
+        await token.actor.createEmbeddedDocuments("ActiveEffect", [effectData]);
+        game.system.log.p("[TRANSFER] Successfully created effect on", token.name, effectData, token.actor);
+      } catch (error) {
+        game.system.log.e("[TRANSFER] Error creating effect:", error);
+      }
+    }
+  }
+}
+class EnableCombatTurnSlot {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the effect
+   * @param {object} event - The event object containing actor, change, and effect
+   * @return {Promise<void>} Returns a promise that resolves when the effect has been processed
+   */
+  async process(event) {
+    const { actor, change } = event;
+    const { value } = change;
+    const current = actor.system.actionState.available;
+    if (!Array.isArray(current)) {
+      return;
+    }
+    if (!current.includes(value)) {
+      const updated = [...current, value];
+      actor.system.actionState.available = updated;
+      await actor.update({
+        "system.actionState.available": updated
+      });
+    }
+  }
+}
+class DamageOverTime {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the damage over time effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    const { change, effect, isMovingForward = true } = event;
+    const currentHP = this.actor.system.points.HP.val;
+    const dotDamage = (parseInt(change.value) || 0) * (isMovingForward ? 1 : -1);
+    if (dotDamage === 0) return;
+    const newHP = Math.max(0, currentHP - dotDamage);
+    game.system.log.o("[DOT] Applying damage:", {
+      actor: this.actor.name,
+      damage: dotDamage,
+      newHP
+    });
+    await this.actor.update({ "system.points.HP.val": newHP });
+    if (isMovingForward && this.actor.system.points.HP.val === 0 && !this.actor.statuses.has("ko")) {
+      await this.actor.toggleStatusEffect("ko");
+    }
+    await ChatMessage.create({
+      user: game.user.id,
+      speaker: ChatMessage.getSpeaker({ actor: this.actor }),
+      flags: {
+        [SYSTEM_ID]: {
+          data: {
+            chatTemplate: "RollChat",
+            actor: {
+              _id: this.actor.id,
+              name: this.actor.name,
+              img: this.actor.img
+            },
+            item: {
+              name: effect.name,
+              img: effect.img || effect.icon,
+              // Support both v11 and v12
+              type: "effect",
+              system: {
+                description: `${this.actor.name} ${isMovingForward ? "takes" : "recovers"} ${Math.abs(dotDamage)} damage ${isMovingForward ? "from" : "due to reversing"} ${effect.name}`,
+                formula: dotDamage.toString()
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  /**
+   * Handle DOT effects during combat updates
+   * @param {Combat} combat - The combat being updated
+   * @param {object} changed - The changes made to the combat
+   * @param {object} options - Update options
+   */
+  async updateCombat(combat, changed, options) {
+    if (!("turn" in changed || "round" in changed) || changed.turn === null) {
+      game.system.log.o("[DOT] Skipping - no turn/round change:", { changed });
+      return;
+    }
+    const previousCombatant = combat.turns[combat.previous?.turn];
+    if (!previousCombatant || previousCombatant.actor.id !== this.actor.id) {
+      game.system.log.o("[DOT] Skipping - not previous combatant:", {
+        actor: this.actor.name,
+        previousCombatant: previousCombatant?.actor?.name,
+        previousTurn: combat.previous?.turn,
+        currentTurn: combat.turn
+      });
+      return;
+    }
+    const isMovingForward = options.direction === 1;
+    const nextTurn = combat.previous?.turn + 1;
+    const isLastTurn = nextTurn === combat.turns.length;
+    const nextCombatant = isLastTurn ? combat.turns[0] : combat.turns[nextTurn];
+    game.system.log.o("[DOT] Checking phase:", {
+      actor: this.actor.name,
+      direction: isMovingForward ? "forward" : "backward",
+      previousType: previousCombatant?.actor?.type,
+      nextType: nextCombatant?.actor?.type,
+      nextTurn,
+      totalTurns: combat.turns.length,
+      isLastTurn,
+      isWrapping: isLastTurn
+    });
+    const lastPC = [...combat.turns].reverse().find((t) => t.actor?.type === "PC");
+    const lastNPC = [...combat.turns].reverse().find((t) => t.actor?.type === "NPC");
+    const isLastOfType = this.actor.type === "PC" && lastPC?.actor?.id === this.actor.id || this.actor.type === "NPC" && lastNPC?.actor?.id === this.actor.id;
+    const nextType = nextCombatant?.actor?.type;
+    const isPhaseTransition = this.actor.type === "PC" && nextType === "NPC" || this.actor.type === "NPC" && nextType === "PC" || isLastTurn && isLastOfType;
+    game.system.log.o("[DOT] Phase check:", {
+      actor: this.actor.name,
+      actorType: this.actor.type,
+      nextType,
+      isPhaseTransition,
+      isLastOfType,
+      isLastTurn
+    });
+    if (!isPhaseTransition) {
+      game.system.log.o("[DOT] Skipping - not a phase transition:", {
+        actor: this.actor.name,
+        direction: isMovingForward ? "forward" : "backward",
+        actorType: this.actor.type,
+        nextType,
+        isLastOfType
+      });
+      return;
+    }
+    const relevantEffects = this.actor.effects.filter(
+      (e) => !e.disabled && e.changes.some((c) => c.key === "DamageOverTime" && c.mode === ACTIVE_EFFECT_MODES.CUSTOM)
+    );
+    if (relevantEffects.length === 0) {
+      game.system.log.o("[DOT] Skipping - no relevant effects:", {
+        actor: this.actor.name,
+        effectCount: this.actor.effects.size
+      });
+      return;
+    }
+    game.system.log.o("[DOT] Processing combat update:", {
+      actor: this.actor.name,
+      direction: isMovingForward ? "forward" : "backward",
+      phase: {
+        currentType: this.actor.type,
+        nextType
+      }
+    });
+    for (const effect of relevantEffects) {
+      for (const change of effect.changes) {
+        if (change.key === "DamageOverTime" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+          await Hooks.callAll("FFXIV.DamageOverTime", {
+            actor: this.actor,
+            change,
+            effect,
+            isMovingForward
+          });
+        }
+      }
+    }
+  }
+}
+let ProcTrigger$1 = class ProcTrigger2 {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the proc trigger effect
+   * @param {object} event - The event containing item and roll data
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    game.system.log.o("[PROC] Starting proc trigger process:", event);
+    const { item, roll } = event;
+    if (!item.system.procs?.list?.length) {
+      game.system.log.o("[PROC] No procs in list, returning");
+      return;
+    }
+    let d20Result;
+    if (item.system.hasCR && roll) {
+      const d20Term = roll.terms[0];
+      d20Result = d20Term.modifiers.includes("kh1") ? Math.max(...d20Term.results.map((r) => r.result)) : d20Term.results[0].result;
+      game.system.log.o("[PROC] Using existing roll d20 result:", d20Result);
+    } else {
+      const procRoll = await new Roll("1d20").evaluate();
+      d20Result = procRoll.terms[0].results[0].result;
+      game.system.log.o("[PROC] Made new roll d20 result:", d20Result);
+    }
+    if (!item.system.procTrigger || d20Result < item.system.procTrigger) {
+      game.system.log.o("[PROC] Roll did not meet proc trigger threshold:", {
+        procTrigger: item.system.procTrigger,
+        d20Result
+      });
+      return;
+    }
+    game.system.log.o("[PROC] Processing proc effects");
+    for (const procRef of item.system.procs.list) {
+      game.system.log.o("[PROC] Processing proc ref:", procRef);
+      const procItem = await fromUuid(procRef.uuid);
+      if (!procItem) {
+        game.system.log.o("[PROC] Could not find proc item:", procRef.uuid);
+        continue;
+      }
+      game.system.log.o("[PROC] Found proc item:", procItem);
+      game.system.log.o("[PROC] Adding proc effect to actor:", procItem.name);
+      const addedEffects = await this.actor.addLinkedEffects(procItem);
+      game.system.log.o("[PROC] Added effects:", addedEffects);
+      await ChatMessage.create({
+        user: game.user.id,
+        speaker: game.settings.get(SYSTEM_ID, "chatMessageSenderIsActorOwner") ? ChatMessage.getSpeaker({ actor: this.actor }) : null,
+        flags: {
+          [SYSTEM_ID]: {
+            data: {
+              chatTemplate: "RollChat",
+              actor: {
+                _id: this.actor._id,
+                name: this.actor.name,
+                img: this.actor.img
+              },
+              item: {
+                _id: procItem._id,
+                uuid: procItem.uuid,
+                name: procItem.name,
+                img: procItem.img,
+                type: procItem.type,
+                system: procItem.system
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+};
+class ProcTrigger {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the proc trigger effect
+   * @param {object} event - The event containing item and roll data
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+  }
+}
+class DurationManager {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Get duration rules for an effect from its origin item
+   * @param {ActiveEffect} effect - The effect to get duration rules for
+   * @return {Promise<Array>} The duration rules array
+   */
+  async getDurationRules(effect) {
+    const originItem = await fromUuid(effect.origin);
+    console.log("[FFXIV] | [DURATION MANAGER] Getting duration rules:", {
+      effectName: effect.name,
+      originUuid: effect.origin,
+      originItem,
+      originDurations: originItem?.system?.durations,
+      effectDurations: effect.system?.durations
+    });
+    return originItem?.system?.durations || effect.system?.durations || [];
+  }
+  /**
+   * Process duration updates when combat updates
+   * @param {Combat} combat - The combat instance
+   * @param {object} changed - What changed in the combat
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async updateCombat(combat, changed) {
+    if (!("turn" in changed || "round" in changed)) return;
+    game.system.log.o("[DURATION MANAGER] updateCombat called:", {
+      combat,
+      changed,
+      actorName: this.actor?.name
+    });
+    const effects2 = this.actor.effects.filter((e) => !e.disabled);
+    for (const effect of effects2) {
+      const durations = await this.getDurationRules(effect);
+      if (!durations?.length) continue;
+      let shouldDelete = false;
+      for (const duration of durations) {
+        const durationType = duration.type;
+        const durationUnits = duration.units;
+        const currentRound = combat.round;
+        const currentTurn = combat.turn;
+        const startRound = effect.duration.startRound;
+        const startTurn = effect.duration.startTurn;
+        game.system.log.o("[DURATION MANAGER] Processing duration:", {
+          name: effect.name,
+          durationType,
+          durationUnits,
+          currentRound,
+          currentTurn,
+          startRound,
+          startTurn
+        });
+        switch (durationType) {
+          case "endOfThis":
+            if (durationUnits === "rounds" && currentRound > startRound || durationUnits === "turns" && (currentRound > startRound || currentTurn > startTurn)) {
+              shouldDelete = true;
+            }
+            break;
+          case "endOfNext":
+            if (durationUnits === "rounds" && currentRound > startRound + 1 || durationUnits === "turns" && currentRound > startRound && currentTurn > startTurn) {
+              shouldDelete = true;
+            }
+            break;
+          case "startOfNext":
+            if (durationUnits === "rounds" && currentRound > startRound || durationUnits === "turns" && (currentRound > startRound || currentTurn > startTurn)) {
+              shouldDelete = true;
+            }
+            break;
+        }
+        if (shouldDelete) break;
+      }
+      if (shouldDelete) {
+        game.system.log.o("[DURATION MANAGER] Deleting effect:", {
+          name: effect.name,
+          origin: effect.origin
+        });
+        await effect.delete();
+      }
+    }
+  }
+  /**
+   * Process duration updates when damage is applied
+   * @param {object} event - The damage event
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async onDamage(event) {
+    game.system.log.o("[DURATION MANAGER] onDamage called:", {
+      event,
+      actorName: this.actor?.name
+    });
+    const effects2 = this.actor.effects.filter((e) => !e.disabled);
+    for (const effect of effects2) {
+      const durations = await this.getDurationRules(effect);
+      if (!durations?.some((d) => d.type === "untilDamage")) continue;
+      game.system.log.o("[DURATION MANAGER] Deleting effect:", {
+        name: effect.name,
+        origin: effect.origin
+      });
+      await effect.delete();
+    }
+  }
+  /**
+   * Process duration updates when an ability is used
+   * @param {object} event - The ability use event containing item and isNewAbilityUse
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async onAbilityUse(event) {
+    console.log("[FFXIV] | [DURATION MANAGER] Full effect details:", {
+      effects: this.actor.effects.map((e) => ({
+        name: e.name,
+        durations: e.system?.durations,
+        origin: e.origin,
+        disabled: e.disabled,
+        uuid: e.uuid,
+        duration: e.duration,
+        flags: e.flags,
+        changes: e.changes
+      }))
+    });
+    console.log("[FFXIV] | [DURATION MANAGER] onAbilityUse called:", {
+      itemName: event.item?.name,
+      itemType: event.item?.type,
+      isNewAbilityUse: event.isNewAbilityUse,
+      itemSystem: event.item?.system,
+      actorName: this.actor?.name,
+      itemUuid: event.item?.uuid,
+      actorEffects: this.actor.effects.map((e) => ({
+        name: e.name,
+        durations: e.system?.durations,
+        disabled: e.disabled,
+        origin: e.origin,
+        requiresAbility: e.duration?.requiresAbility,
+        type: e.duration?.type,
+        flags: e.flags
+      }))
+    });
+    if (!event.isNewAbilityUse) {
+      game.system.log.o("[DURATION MANAGER] Skipping nextAbility check - not a new ability use");
+      return;
+    }
+    const effects2 = this.actor.effects.filter((e) => !e.disabled);
+    for (const effect of effects2) {
+      const durations = await this.getDurationRules(effect);
+      if (!durations?.some((d) => d.qualifier === "nextAbility")) continue;
+      const effectOrigin = await fromUuid(effect.origin);
+      if (effectOrigin?.uuid === event.item.uuid || effectOrigin?.name === event.item?.name) {
+        game.system.log.o("[DURATION MANAGER] Skipping effect deletion because ability is the source");
+        continue;
+      }
+      game.system.log.o("[DURATION MANAGER] Deleting effect:", {
+        name: effect.name,
+        systemDuration: effect.system?.durations,
+        coreDuration: effect.duration,
+        origin: effect.origin,
+        effectUuid: effect.uuid,
+        abilityUuid: event.item?.uuid,
+        effectOriginUuid: effectOrigin?.uuid
+      });
+      await effect.delete();
+    }
+  }
+}
+const effects = {
+  PrimaryBaseDamageBuff,
+  AbilityBaseDamageBuff,
+  DamageDiceReroll,
+  TransferEffectToAllies,
+  EnableCombatTurnSlot,
+  DamageOverTime,
+  ProcTrigger: ProcTrigger$1,
+  LucidDreaming: ProcTrigger,
+  DurationManager
+};
+function updateCombat() {
+  Hooks.on("updateCombat", async (combat, changed, options, userId) => {
+    if (!("turn" in changed || "round" in changed) || changed.turn === null) return;
+    const previousTurn = combat.turns[combat.previous?.turn];
+    if (!previousTurn) return;
+    const actor = previousTurn.actor;
+    if (!actor) return;
+    const turnLimitedItems = actor.items.filter(
+      (i) => i.system.hasLimitation && i.system.limitationUnits === "turn"
+    );
+    await resetUses(turnLimitedItems);
+    await resetActionState(actor);
+    for (const combatant of combat.turns) {
+      const currentActor = combatant.actor;
+      if (!currentActor) continue;
+      await currentActor.update({
+        "system.actionState.usedReaction": false
+      });
+    }
+    await actor.update({ system: { hasMoved: false } });
+    resetTokenMovement(previousTurn.token.id);
+    for (const combatant of combat.turns) {
+      const currentActor = combatant.actor;
+      if (!currentActor) continue;
+      const effectProcessors = Object.values(effects).map((EffectClass) => new EffectClass(currentActor)).filter((processor) => typeof processor.updateCombat === "function");
+      for (const processor of effectProcessors) {
+        await processor.updateCombat(combat, changed, options);
+      }
+    }
+  });
+}
+function preDeleteChatMessage() {
+  Hooks.on("preDeleteChatMessage", async (message) => {
+    const FFMessage = message.getFlag(MODULE_ID, "data");
+    if (!FFMessage || !FFMessage.actor || !FFMessage.item || FFMessage.item.type !== "action") return;
+    const state = message.getFlag(MODULE_ID, "state");
+    if (state?.damageResults) {
+      const hasAppliedDamage = Object.values(state.damageResults).some((result) => result.applied);
+      if (hasAppliedDamage) {
+        game.system.log.w("[SLOT:RESTORE] Message has applied damage results, not restoring slot");
+        return;
+      }
+    }
+    const actor = game.actors.get(FFMessage.actor._id);
+    if (!actor) return;
+    const { actionState } = actor.system;
+    const usedAction = actionState.used.find((u) => u.messageId === message.id);
+    if (state?.mpCost && !state.mpRestored) {
+      const currentMP = actor.system.points.MP.val;
+      try {
+        await actor.update({
+          "system.points.MP.val": currentMP + state.mpCost
+        });
+        await message.update({
+          [`flags.${MODULE_ID}.state.mpRestored`]: true
+        });
+      } catch (error) {
+        game.system.log.e("[MP:RESTORE] Error restoring MP cost:", error);
+      }
+    }
+    if (usedAction) {
+      await actor.update({
+        "system.actionState": {
+          available: [...actionState.available, usedAction.type],
+          used: actionState.used.filter((u) => u.messageId !== message.id)
+        }
+      });
+    }
+  });
+}
+function targetToken() {
+  Hooks.on("targetToken", (User, Token) => {
+    const targets = game.user.targets.filter((target) => {
+      if (Token._id === target._id && target == false) return false;
+      return true;
+    }).map((target) => {
+      return {
+        avatar: target.document.texture.src,
+        actorUuid: target.actor.uuid,
+        // map the token actor (not the linked actor)
+        clickedByUserId: User._id,
+        tokenUuid: target.document.uuid
+      };
+    });
+    mappedGameTargets.set(targets);
+  });
+}
+function deleteCombat() {
+  Hooks.on("deleteCombat", async (combat) => {
+    await combat.resetCombatantAbilities();
+  });
+}
+function combatStart() {
+  Hooks.on("combatStart", async (combat, data, meta, id) => {
+    const combatStartSound2 = game.settings.get(MODULE_ID, "combatStartSound").trim();
+    if (combatStartSound2 !== "") {
+      foundry.audio.AudioHelper.play({ src: combatStartSound2, volume: 1, autoplay: true, loop: false });
+    }
+    await combat.resetCombatantAbilities();
+  });
+}
+function preUpdateToken() {
+  Hooks.on("preUpdateToken", async (tokenDocument, update2) => {
+    const actor = game.actors.get(tokenDocument.actorId);
+    if (actor.statuses.has("focus") && (update2.x || update2.y)) {
+      delete update2.x;
+      delete update2.y;
+      ui.notifications.warn(game.i18n.localize("FFXIVA.Errors.CannotMoveWhileFocused"));
+    }
+    if (update2.x || update2.y) {
+      actor.update({ system: { hasMoved: true } });
+    }
+  });
+}
+function canvasReady$1() {
+  Hooks.on("canvasReady", () => {
+  });
+}
+function preCreateCombatant() {
+  Hooks.on("preCreateCombatant", async (combatant, data, meta, id) => {
+    const actor = combatant.actor;
+    if (!actor) return;
+    await resetActionState(actor);
+  });
+}
+function updateActiveEffect() {
+}
 if (typeof window !== "undefined")
   (window.__svelte || (window.__svelte = { v: /* @__PURE__ */ new Set() })).v.add(PUBLIC_VERSION);
 function cubicOut(t) {
@@ -1715,101 +3035,6 @@ class TJSDefaultTransition {
     return this.#options;
   }
 }
-const subscriber_queue = [];
-function readable(value, start) {
-  return {
-    subscribe: writable(value, start).subscribe
-  };
-}
-function writable(value, start = noop) {
-  let stop;
-  const subscribers = /* @__PURE__ */ new Set();
-  function set(new_value) {
-    if (safe_not_equal(value, new_value)) {
-      value = new_value;
-      if (stop) {
-        const run_queue = !subscriber_queue.length;
-        for (const subscriber of subscribers) {
-          subscriber[1]();
-          subscriber_queue.push(subscriber, value);
-        }
-        if (run_queue) {
-          for (let i = 0; i < subscriber_queue.length; i += 2) {
-            subscriber_queue[i][0](subscriber_queue[i + 1]);
-          }
-          subscriber_queue.length = 0;
-        }
-      }
-    }
-  }
-  function update2(fn) {
-    set(fn(value));
-  }
-  function subscribe2(run2, invalidate = noop) {
-    const subscriber = [run2, invalidate];
-    subscribers.add(subscriber);
-    if (subscribers.size === 1) {
-      stop = start(set, update2) || noop;
-    }
-    run2(value);
-    return () => {
-      subscribers.delete(subscriber);
-      if (subscribers.size === 0 && stop) {
-        stop();
-        stop = null;
-      }
-    };
-  }
-  return { set, update: update2, subscribe: subscribe2 };
-}
-function derived(stores, fn, initial_value) {
-  const single = !Array.isArray(stores);
-  const stores_array = single ? [stores] : stores;
-  if (!stores_array.every(Boolean)) {
-    throw new Error("derived() expects stores as input, got a falsy value");
-  }
-  const auto = fn.length < 2;
-  return readable(initial_value, (set, update2) => {
-    let started = false;
-    const values = [];
-    let pending = 0;
-    let cleanup = noop;
-    const sync = () => {
-      if (pending) {
-        return;
-      }
-      cleanup();
-      const result = fn(single ? values[0] : values, set, update2);
-      if (auto) {
-        set(result);
-      } else {
-        cleanup = is_function(result) ? result : noop;
-      }
-    };
-    const unsubscribers = stores_array.map(
-      (store, i) => subscribe(
-        store,
-        (value) => {
-          values[i] = value;
-          pending &= ~(1 << i);
-          if (started) {
-            sync();
-          }
-        },
-        () => {
-          pending |= 1 << i;
-        }
-      )
-    );
-    started = true;
-    sync();
-    return function stop() {
-      run_all(unsubscribers);
-      cleanup();
-      started = false;
-    };
-  });
-}
 class AppShellContextInternal {
   /** @type {InternalAppStores} */
   #stores;
@@ -2007,7 +3232,7 @@ ${JSON.stringify(config)}`
   }
   return {};
 }
-function localize(stringId, data) {
+function localize$1(stringId, data) {
   const result = !isObject(data) ? globalThis.game.i18n.localize(stringId) : globalThis.game.i18n.format(stringId, data);
   return result !== void 0 ? result : "";
 }
@@ -9981,7 +11206,7 @@ function create_if_block$2(ctx) {
         /*label*/
         ctx[3]
       );
-      attr(span, "class", "svelte-gas-166l8wd");
+      attr(span, "class", "svelte-166l8wd");
       toggle_class(
         span,
         "has-icon",
@@ -10037,7 +11262,7 @@ function create_fragment$5(ctx) {
       if (if_block) if_block.c();
       html_tag.a = html_anchor;
       attr(a, "class", a_class_value = "header-button " + /*button*/
-      ctx[0].class + " svelte-gas-166l8wd");
+      ctx[0].class + " svelte-166l8wd");
       attr(
         a,
         "aria-label",
@@ -10117,7 +11342,7 @@ function create_fragment$5(ctx) {
       }
       if (dirty & /*button*/
       1 && a_class_value !== (a_class_value = "header-button " + /*button*/
-      ctx2[0].class + " svelte-gas-166l8wd")) {
+      ctx2[0].class + " svelte-166l8wd")) {
         attr(a, "class", a_class_value);
       }
       if (dirty & /*label*/
@@ -10203,7 +11428,7 @@ function instance$5($$self, $$props, $$invalidate) {
   $$self.$$.update = () => {
     if ($$self.$$.dirty & /*button*/
     1) {
-      $$invalidate(9, title = isObject(button) && typeof button.title === "string" ? localize(button.title) : "");
+      $$invalidate(9, title = isObject(button) && typeof button.title === "string" ? localize$1(button.title) : "");
     }
     if ($$self.$$.dirty & /*button, title*/
     513) {
@@ -10211,7 +11436,7 @@ function instance$5($$self, $$props, $$invalidate) {
     }
     if ($$self.$$.dirty & /*button*/
     1) {
-      $$invalidate(3, label = isObject(button) && typeof button.label === "string" ? localize(button.label) : void 0);
+      $$invalidate(3, label = isObject(button) && typeof button.label === "string" ? localize$1(button.label) : void 0);
     }
     if ($$self.$$.dirty & /*button*/
     1) {
@@ -10242,7 +11467,7 @@ function instance$5($$self, $$props, $$invalidate) {
 class TJSHeaderButton extends SvelteComponent {
   constructor(options) {
     super();
-    init(this, options, instance$5, create_fragment$5, safe_not_equal, { button: 0 });
+    init$1(this, options, instance$5, create_fragment$5, safe_not_equal, { button: 0 });
   }
   get button() {
     return this.$$.ctx[0];
@@ -10268,7 +11493,7 @@ function create_if_block$1(ctx) {
   return {
     c() {
       img = element("img");
-      attr(img, "class", "tjs-app-icon keep-minimized svelte-gas-1wviwl9");
+      attr(img, "class", "tjs-app-icon keep-minimized svelte-1wviwl9");
       if (!src_url_equal(img.src, img_src_value = /*$storeHeaderIcon*/
       ctx[6])) attr(img, "src", img_src_value);
       attr(img, "alt", "icon");
@@ -10464,7 +11689,7 @@ function create_key_block(ctx) {
   let header;
   let t0;
   let h4;
-  let t1_value = localize(
+  let t1_value = localize$1(
     /*$storeTitle*/
     ctx[7]
   ) + "";
@@ -10519,15 +11744,15 @@ function create_key_block(ctx) {
       for (let i = 0; i < each_blocks.length; i += 1) {
         each_blocks[i].c();
       }
-      attr(h4, "class", "window-title svelte-gas-1wviwl9");
+      attr(h4, "class", "window-title svelte-1wviwl9");
       set_style(
         h4,
         "display",
         /*displayHeaderTitle*/
         ctx[4]
       );
-      attr(span, "class", "tjs-window-header-spacer keep-minimized svelte-gas-1wviwl9");
-      attr(header, "class", "window-header flexrow svelte-gas-1wviwl9");
+      attr(span, "class", "tjs-window-header-spacer keep-minimized svelte-1wviwl9");
+      attr(header, "class", "window-header flexrow svelte-1wviwl9");
     },
     m(target, anchor) {
       insert(target, header, anchor);
@@ -10591,7 +11816,7 @@ function create_key_block(ctx) {
         if_block = null;
       }
       if ((!current || dirty[0] & /*$storeTitle*/
-      128) && t1_value !== (t1_value = localize(
+      128) && t1_value !== (t1_value = localize$1(
         /*$storeTitle*/
         ctx2[7]
       ) + "")) set_data(t1, t1_value);
@@ -10906,7 +12131,7 @@ function instance$4($$self, $$props, $$invalidate) {
 class TJSApplicationHeader extends SvelteComponent {
   constructor(options) {
     super();
-    init(this, options, instance$4, create_fragment$4, safe_not_equal, { draggable: 0, draggableOptions: 20 }, null, [-1, -1]);
+    init$1(this, options, instance$4, create_fragment$4, safe_not_equal, { draggable: 0, draggableOptions: 20 }, null, [-1, -1]);
   }
 }
 function create_fragment$3(ctx) {
@@ -10916,7 +12141,7 @@ function create_fragment$3(ctx) {
   return {
     c() {
       div = element("div");
-      attr(div, "class", "tjs-focus-wrap svelte-gas-kjcljd");
+      attr(div, "class", "tjs-focus-wrap svelte-kjcljd");
       attr(div, "tabindex", "0");
     },
     m(target, anchor) {
@@ -10985,7 +12210,7 @@ function instance$3($$self, $$props, $$invalidate) {
 class TJSFocusWrap extends SvelteComponent {
   constructor(options) {
     super();
-    init(this, options, instance$3, create_fragment$3, safe_not_equal, { elementRoot: 2, enabled: 3 });
+    init$1(this, options, instance$3, create_fragment$3, safe_not_equal, { elementRoot: 2, enabled: 3 });
   }
 }
 function create_fragment$2(ctx) {
@@ -10996,8 +12221,8 @@ function create_fragment$2(ctx) {
   return {
     c() {
       div = element("div");
-      div.innerHTML = `<i class="fas fa-arrows-alt-h svelte-gas-14lnpz8"></i>`;
-      attr(div, "class", "window-resizable-handle svelte-gas-14lnpz8");
+      div.innerHTML = `<i class="fas fa-arrows-alt-h svelte-14lnpz8"></i>`;
+      attr(div, "class", "window-resizable-handle svelte-14lnpz8");
     },
     m(target, anchor) {
       insert(target, div, anchor);
@@ -11170,7 +12395,7 @@ function instance$2($$self, $$props, $$invalidate) {
 class ResizableHandle extends SvelteComponent {
   constructor(options) {
     super();
-    init(this, options, instance$2, create_fragment$2, safe_not_equal, { isResizable: 7 });
+    init$1(this, options, instance$2, create_fragment$2, safe_not_equal, { isResizable: 7 });
   }
 }
 function create_else_block(ctx) {
@@ -11237,12 +12462,12 @@ function create_else_block(ctx) {
       create_component(resizablehandle.$$.fragment);
       t2 = space();
       create_component(tjsfocuswrap.$$.fragment);
-      attr(section, "class", "window-content svelte-gas-oz81f7");
+      attr(section, "class", "window-content svelte-oz81f7");
       attr(section, "tabindex", "-1");
       attr(div, "id", div_id_value = /*application*/
       ctx[10].id);
       attr(div, "class", div_class_value = "app window-app " + /*application*/
-      ctx[10].options.classes.join(" ") + " svelte-gas-oz81f7");
+      ctx[10].options.classes.join(" ") + " svelte-oz81f7");
       attr(div, "data-appid", div_data_appid_value = /*application*/
       ctx[10].appId);
       attr(div, "role", "application");
@@ -11375,7 +12600,7 @@ function create_else_block(ctx) {
       }
       if (!current || dirty[0] & /*application*/
       1024 && div_class_value !== (div_class_value = "app window-app " + /*application*/
-      ctx2[10].options.classes.join(" ") + " svelte-gas-oz81f7")) {
+      ctx2[10].options.classes.join(" ") + " svelte-oz81f7")) {
         attr(div, "class", div_class_value);
       }
       if (!current || dirty[0] & /*application*/
@@ -11480,12 +12705,12 @@ function create_if_block(ctx) {
       create_component(resizablehandle.$$.fragment);
       t2 = space();
       create_component(tjsfocuswrap.$$.fragment);
-      attr(section, "class", "window-content svelte-gas-oz81f7");
+      attr(section, "class", "window-content svelte-oz81f7");
       attr(section, "tabindex", "-1");
       attr(div, "id", div_id_value = /*application*/
       ctx[10].id);
       attr(div, "class", div_class_value = "app window-app " + /*application*/
-      ctx[10].options.classes.join(" ") + " svelte-gas-oz81f7");
+      ctx[10].options.classes.join(" ") + " svelte-oz81f7");
       attr(div, "data-appid", div_data_appid_value = /*application*/
       ctx[10].appId);
       attr(div, "role", "application");
@@ -11616,7 +12841,7 @@ function create_if_block(ctx) {
       }
       if (!current || dirty[0] & /*application*/
       1024 && div_class_value !== (div_class_value = "app window-app " + /*application*/
-      ctx[10].options.classes.join(" ") + " svelte-gas-oz81f7")) {
+      ctx[10].options.classes.join(" ") + " svelte-oz81f7")) {
         attr(div, "class", div_class_value);
       }
       if (!current || dirty[0] & /*application*/
@@ -12023,7 +13248,7 @@ function instance$1($$self, $$props, $$invalidate) {
 class ApplicationShell extends SvelteComponent {
   constructor(options) {
     super();
-    init(
+    init$1(
       this,
       options,
       instance$1,
@@ -12170,9 +13395,6 @@ cssVariables.setProperties({
   // TJSApplicationShell app background.
   "--tjs-app-background": `url("${globalThis.foundry.utils.getRoute("/ui/denim075.png")}")`
 }, false);
-const MODULE_ID = "foundryvtt-final-fantasy-XIV-automation";
-const MODULE_TITLE = "Final Fantasy XIV Automation";
-const LOG_PREFIX = "FFXIV [Automation] |";
 function create_default_slot(ctx) {
   let main;
   let p0;
@@ -12203,10 +13425,10 @@ function create_default_slot(ctx) {
       p4.textContent = `${MODULE_TITLE} is sponsored by `;
       a1 = element("a");
       a1.textContent = "Round Table Games";
-      attr(main, "class", "svelte-gas-1f5phzh");
+      attr(main, "class", "svelte-1f5phzh");
       attr(a1, "href", "https://www.round-table.games");
-      attr(a1, "class", "svelte-gas-1f5phzh");
-      attr(footer, "class", "svelte-gas-1f5phzh");
+      attr(a1, "class", "svelte-1f5phzh");
+      attr(footer, "class", "svelte-1f5phzh");
     },
     m(target, anchor) {
       insert(target, main, anchor);
@@ -12321,7 +13543,7 @@ function instance($$self, $$props, $$invalidate) {
 class WelcomeAppShell extends SvelteComponent {
   constructor(options) {
     super();
-    init(this, options, instance, create_fragment, safe_not_equal, { elementRoot: 0, version: 1 });
+    init$1(this, options, instance, create_fragment, safe_not_equal, { elementRoot: 0, version: 1 });
   }
   get elementRoot() {
     return this.$$.ctx[0];
@@ -14362,35 +15584,17 @@ class WelcomeApplication extends SvelteApplication {
     });
   }
 }
-const log$1 = {
-  ASSERT: 1,
-  ERROR: 2,
-  WARN: 3,
-  INFO: 4,
-  DEBUG: 5,
-  VERBOSE: 6,
-  set level(level) {
-    this.a = level >= this.ASSERT ? console.assert.bind(window.console, LOG_PREFIX) : () => {
-    };
-    this.e = level >= this.ERROR ? console.error.bind(window.console, LOG_PREFIX) : () => {
-    };
-    this.w = level >= this.WARN ? console.warn.bind(window.console, LOG_PREFIX) : () => {
-    };
-    this.i = level >= this.INFO ? console.info.bind(window.console, LOG_PREFIX) : () => {
-    };
-    this.d = level >= this.DEBUG ? console.debug.bind(window.console, LOG_PREFIX) : () => {
-    };
-    this.v = level >= this.VERBOSE ? console.log.bind(window.console, LOG_PREFIX) : () => {
-    };
-    this.loggingLevel = level;
-  },
-  get level() {
-    return this.loggingLevel;
-  }
-};
+function canvasReady() {
+  Hooks.once("ready", async () => {
+    if (!game.settings.get(MODULE_ID, "dontShowWelcome")) {
+      new WelcomeApplication().render(true, { focus: true });
+    }
+  });
+}
 function registerSettings(app) {
-  log.i("Building module settings");
+  game.system.log.i(`Building ${MODULE_ID} settings`);
   dontShowWelcome();
+  combatStartSound();
 }
 function dontShowWelcome() {
   game.settings.register(MODULE_ID, "dontShowWelcome", {
@@ -14402,20 +15606,213 @@ function dontShowWelcome() {
     type: Boolean
   });
 }
-window.log = log$1;
-log$1.level = log$1.DEBUG;
-Hooks.once("init", (app, html, data) => {
-  log$1.i("Initialising");
-  CONFIG.debug.hooks = true;
-  registerSettings();
-});
-Hooks.once("ready", (app, html, data) => {
-  if (!game.modules.get(MODULE_ID).active) {
-    log$1.w("Module is not active");
+function combatStartSound() {
+  gameSettings.register({
+    namespace: MODULE_ID,
+    key: "combatStartSound",
+    options: {
+      name: localize("Setting.combatStartSound.Name"),
+      hint: localize("Setting.combatStartSound.Hint"),
+      scope: "user",
+      config: true,
+      default: "sounds/drums.wav",
+      type: String,
+      filePicker: "any"
+    }
+  });
+}
+function setupEffectsProcessors() {
+  game.system.log.o("[EFFECTS] Setting up effect processors");
+  Hooks.on("FFXIV.processAdditionalBaseDamageFromItem", async (event) => {
+    let processor = new effects.PrimaryBaseDamageBuff(event.actor);
+    await processor.process(event);
+    processor = new effects.AbilityBaseDamageBuff(event.actor);
+    await processor.process(event);
+  });
+  Hooks.on("FFXIV.DamageDiceReroll", (event) => {
+    const processor = new effects.DamageDiceReroll(event.actor);
+    processor.process(event);
+  });
+  Hooks.on("FFXIV.EnableCombatTurnSlot", async (event) => {
+    game.system.log.o("[EFFECTS] EnableCombatTurnSlot hook triggered:", event);
+    const processor = new effects.EnableCombatTurnSlot(event.actor);
+    await processor.process(event);
+  });
+  Hooks.on("FFXIV.TransferEffectToAllies", async (event) => {
+    const processor = new effects.TransferEffectToAllies(event.actor);
+    await processor.process(event);
+  });
+  Hooks.on("FFXIV.TransferEffectToAlliesDelete", async (event) => {
+    const processor = new effects.TransferEffectToAllies(event.actor);
+    await processor.delete(event);
+  });
+  Hooks.on("FFXIV.DamageOverTime", async (event) => {
+    const processor = new effects.DamageOverTime(event.actor);
+    await processor.process(event);
+  });
+  Hooks.on("FFXIV.ProcTrigger", async (event) => {
+    const processor = new effects.ProcTrigger(event.actor);
+    await processor.process(event);
+  });
+  Hooks.on("FFXIV.onDamage", async (event) => {
+    const processor = new effects.DurationManager(event.actor);
+    await processor.onDamage(event);
+  });
+  Hooks.on("FFXIV.onAbilityUse", async (event) => {
+    console.log("[FFXIV] | [EFFECTS PROCESSOR] Handling onAbilityUse hook", {
+      event,
+      itemName: event.item?.name,
+      isNewAbilityUse: event.isNewAbilityUse
+    });
+    const processor = new effects.DurationManager(event.actor);
+    await processor.onAbilityUse(event);
+  });
+}
+function init() {
+  Hooks.once("init", async (a, b, c) => {
+    game.system.log.i(`Starting module ${MODULE_ID}`);
+    registerSettings();
+    setupEffectsProcessors();
+    Handlebars.registerHelper("getSetting", function(moduleName, settingKey) {
+      return game.settings.get(moduleName, settingKey);
+    });
+    Hooks.call("FFXIVA.initIsComplete");
+  });
+}
+const hooks = {
+  preDeleteChatMessage,
+  targetToken,
+  deleteCombat,
+  updateCombat,
+  combatStart,
+  preUpdateToken,
+  canvasReady: canvasReady$1,
+  preCreateCombatant,
+  updateActiveEffect,
+  ready: canvasReady,
+  init,
+  onDamage,
+  onAbilityUse
+};
+console.log("[FFXIV] | [HOOKS] Setting up hooks");
+function onDamage() {
+  Hooks.on("FFXIVA.onDamage", async (event) => {
+    const actor = event.actor;
+    if (!actor) return;
+    const durationManager = new effects.DurationManager(actor);
+    await durationManager.onDamage(event);
+  });
+}
+function onAbilityUse() {
+  console.log("[FFXIV] | [HOOKS] Registering onAbilityUse hook");
+  Hooks.on("FFXIVA.onAbilityUse", async (event) => {
+    console.log("[FFXIV] | [ABILITY USE HOOK] Hook triggered", {
+      itemName: event.item?.name,
+      isNewAbilityUse: event.isNewAbilityUse,
+      stack: new Error().stack
+    });
+  });
+}
+CONFIG.Combat.documentClass = FFCombat;
+CONFIG.FFXIV.RollGuards = RollGuards;
+hooks.init();
+hooks.ready();
+hooks.combatStart();
+hooks.preCreateCombatant();
+hooks.preDeleteChatMessage();
+hooks.preUpdateToken();
+hooks.targetToken();
+hooks.updateCombat();
+hooks.deleteCombat();
+let totalDistance = 0;
+Hooks.on("preUpdateToken", async (tokenDocument, update2, options, userId) => {
+  console.log("preUpdateToken", tokenDocument, update2, options);
+  if (options.isUndo) {
+    const currentMovement = getTokenMovement(tokenDocument.id);
+    const lastSegmentDistance = canvas.controls.ruler?.totalDistance || 0;
+    if (currentMovement > 0) {
+      addTokenMovement(tokenDocument.id, -Math.abs(lastSegmentDistance));
+      console.log("Undo movement:", {
+        tokenId: tokenDocument.id,
+        subtractedDistance: lastSegmentDistance,
+        newTotal: getTokenMovement(tokenDocument.id)
+      });
+    }
     return;
   }
-  if (!game.settings.get(MODULE_ID, "dontShowWelcome")) {
-    new WelcomeApplication().render(true, { focus: true });
+  if (!arrowKeysPressed) {
+    const availableMovement = tokenDocument.actor.system.attributes.secondary.spd.val;
+    const currentMovement = getTokenMovement(tokenDocument.id);
+    if (game.combat?.started) {
+      const currentCombatant = game.combat.combatant;
+      const isCurrentTurn = currentCombatant?.token?.id === tokenDocument.id;
+      if (!isCurrentTurn) {
+        ui.notifications.warn("You can only move on your turn.");
+        delete update2.x;
+        delete update2.y;
+        return;
+      }
+    }
+    const measureDistance = canvas.controls.ruler?.totalDistance || 0;
+    console.log("Movement Check:", {
+      tokenId: tokenDocument.id,
+      measureDistance,
+      currentMovement,
+      availableMovement,
+      update: update2
+    });
+    if (measureDistance === 0) return;
+    console.log("Detailed Movement Check:", {
+      tokenId: tokenDocument.id,
+      measureDistance: Number(measureDistance),
+      currentMovement: Number(currentMovement),
+      availableMovement: Number(availableMovement),
+      wouldBeTotal: Number(currentMovement) + Number(measureDistance),
+      update: update2
+    });
+    if (game.combat?.started && Number(currentMovement) + Number(measureDistance) > Number(availableMovement)) {
+      const remainingMovement = Math.max(0, Number(availableMovement) - Number(currentMovement));
+      ui.notifications.warn(`You don't have sufficient movement for that distance. You can still move ${remainingMovement} grid squares.`);
+      delete update2.x;
+      delete update2.y;
+    } else if (game.combat?.started) {
+      addTokenMovement(tokenDocument.id, Number(measureDistance));
+      console.log("After adding movement:", {
+        tokenId: tokenDocument.id,
+        addedDistance: Number(measureDistance),
+        newTotal: Number(getTokenMovement(tokenDocument.id))
+      });
+    }
+  } else {
+    console.log("Disable arrow keys movement");
+    delete update2.x;
+    delete update2.y;
+  }
+});
+let arrowKeysPressed = false;
+document.addEventListener("keydown", (event) => {
+  if (!game.combat?.started) return;
+  console.log("keyup event", event.key);
+  if (event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "a" || event.key === "d") {
+    arrowKeysPressed = true;
+  } else if (event.code === "Space") {
+    const tool = game.activeTool;
+    if (tool != "select") return;
+    if (canvas.controls.ruler.segments?.length) {
+      const path = canvas.grid.measurePath(canvas.controls.ruler.segments);
+      totalDistance = parseInt(path.distance);
+    }
+    console.log("keyup space totalDistance", totalDistance);
+  }
+});
+document.addEventListener("mouseup", (event) => {
+  arrowKeysPressed = false;
+});
+document.addEventListener("keyup", (event) => {
+  if (!game.combat?.started) return;
+  console.log("keyup event", event.key);
+  if (event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "a" || event.key === "d") {
+    arrowKeysPressed = false;
   }
 });
 //# sourceMappingURL=index.js.map
