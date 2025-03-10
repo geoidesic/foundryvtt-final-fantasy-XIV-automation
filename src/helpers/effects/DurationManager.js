@@ -16,7 +16,7 @@ export default class DurationManager {
    */
   async getDurationRules(effect) {
     const originItem = await fromUuid(effect.origin);
-    console.log("[FFXIV] | [DURATION MANAGER] Getting duration rules:", {
+    console.log("[FFXIVA] | [DURATION MANAGER] Getting duration rules:", {
       effectName: effect.name,
       originUuid: effect.origin,
       originItem,
@@ -135,7 +135,7 @@ export default class DurationManager {
    * @return {Promise<void>} A promise that resolves when processing is complete
    */
   async onAbilityUse(event) {
-    console.log("[FFXIV] | [DURATION MANAGER] Full effect details:", {
+    console.log("[FFXIVA] | [DURATION MANAGER] Full effect details:", {
       effects: this.actor.effects.map(e => ({
         name: e.name,
         durations: e.system?.durations,
@@ -148,7 +148,7 @@ export default class DurationManager {
       }))
     });
 
-    console.log("[FFXIV] | [DURATION MANAGER] onAbilityUse called:", {
+    console.log("[FFXIVA] | [DURATION MANAGER] onAbilityUse called:", {
       itemName: event.item?.name,
       itemType: event.item?.type,
       isNewAbilityUse: event.isNewAbilityUse,

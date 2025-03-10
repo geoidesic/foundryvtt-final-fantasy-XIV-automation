@@ -1,4 +1,6 @@
 import { MODULE_ID } from '~/src/helpers/constants';
+import { localize } from '~/src/helpers/util';
+import { gameSettings } from '~/src/config/gameSettings';
 
 export function registerSettings(app) {
   game.system.log.i(`Building ${MODULE_ID} settings`);
@@ -12,13 +14,17 @@ export function registerSettings(app) {
 }
 
 function dontShowWelcome() {
-  game.settings.register(MODULE_ID, 'dontShowWelcome', {
-    name: game.i18n.localize(`${MODULE_ID}.Setting.DontShowWelcome.Name`),
-    hint: game.i18n.localize(`${MODULE_ID}.Setting.DontShowWelcome.Hint`),
-    scope: 'user',
-    config: true,
-    default: false,
-    type: Boolean,
+  gameSettings.register({
+    namespace: MODULE_ID,
+    key: 'dontShowWelcome',
+    options: {
+      name: localize('Setting.DontShowWelcome.Name'),
+      hint: localize('Setting.DontShowWelcome.Hint'),
+      scope: 'user',
+      config: true,
+      default: false,
+      type: Boolean
+    }
   });
 }
 

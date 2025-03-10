@@ -33,7 +33,7 @@ export default class AbilitiesLimiter {
     });
 
     // Add detailed logging at the start
-    console.log("[FFXIV] | [ABILITIES LIMITER] Starting process with effect state:", {
+    console.log("[FFXIVA] | [ABILITIES LIMITER] Starting process with effect state:", {
       effectName: damageOnlyEffect?.name,
       effectChanges: damageOnlyEffect?.changes,
       effectOrigin: damageOnlyEffect?.origin,
@@ -158,7 +158,7 @@ export default class AbilitiesLimiter {
       });
 
       // Add before the delete attempt
-      console.log("[FFXIV] | [ABILITIES LIMITER] About to delete effect:", {
+      console.log("[FFXIVA] | [ABILITIES LIMITER] About to delete effect:", {
         effectName: damageOnlyEffect.name,
         effectId: damageOnlyEffect.id,
         effectDuration: damageOnlyEffect.duration,
@@ -174,7 +174,7 @@ export default class AbilitiesLimiter {
       }
 
       // Add after the delete attempt
-      console.log("[FFXIV] | [ABILITIES LIMITER] After delete attempt:", {
+      console.log("[FFXIVA] | [ABILITIES LIMITER] After delete attempt:", {
         effectStillExists: this.actor.effects.has(damageOnlyEffect.id),
         remainingEffects: this.actor.effects.map(e => ({
           name: e.name,

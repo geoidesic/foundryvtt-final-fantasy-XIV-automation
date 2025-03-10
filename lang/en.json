@@ -1,10 +1,14 @@
 {
-  "MODULE_ID": {
+  "FFXIVA": {
     "Title": "Module Title",
     "Setting": {
       "DontShowWelcome": {
         "Name": "Don't show this message again",
         "Hint": "Don't show the welcome application when Foundry first loads. (You can always undo this via Configure Settings)."
+      },
+      "combatStartSound": {
+        "Name": "Sound file for combat start",
+        "Hint": "If blank, no sound will be played. If set, the sound will be played when combat starts."
       }
     }
   }

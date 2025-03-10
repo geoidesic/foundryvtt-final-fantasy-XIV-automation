@@ -19,6 +19,32 @@ export default class FFXIVActor extends BaseFFActor {
     super(data, context);
   }
 
+  /**
+   * Gets effects that enable combat turn slots
+   * @return {Array<ActiveEffect>} effects on the actor that have a change with key = EnableCombatTurnSlot mode = custom
+   */
+  get enablerEffects() {
+    return this.effects.filter(effect =>
+      effect.changes.some(change =>
+        change.key === 'EnableCombatTurnSlot' && change.mode === ACTIVE_EFFECT_MODES.CUSTOM
+      )
+    );
+  }
+
+  /**
+   * Checks if item tags match enabler effect tags
+   * @param {Item} item - The item to check
+   * @return {boolean} Whether tags match
+   */
+  itemTagsMatchEnablerEffectTags(item) {
+    const itemTags = item.system.tags;
+    for (const effect of this.effects) {
+      if (effect.system.tags?.some(tag => itemTags.includes(tag))) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /**
    * Add effects from an item to this actor

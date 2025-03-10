@@ -3,7 +3,7 @@
 export const MODULE_ID = 'foundryvtt-final-fantasy-XIV-automation';
 export const MODULE_TITLE = 'Final Fantasy XIV Automation';
 export const MODULE_CODE = 'FFXIVA';
-export const LOG_PREFIX = 'FFXIV [Automation] |';
+export const LOG_PREFIX = 'FFXIVA [Automation] |';
 export const MYSTERY_MAN = 'icons/svg/mystery-man.svg';
 export const NONE_ICON = 'icons/svg/cancel.svg';
 export const SYSTEM_ID = 'foundryvtt-final-fantasy';

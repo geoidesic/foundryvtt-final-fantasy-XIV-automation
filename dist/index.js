@@ -5,6 +5,14 @@ const SYSTEM_ID = "foundryvtt-final-fantasy";
 const ACTIVE_EFFECT_MODES = {
   CUSTOM: 0
 };
+function generateRandomElementId(length = 8) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 function localize$2(string) {
   return game.i18n.localize(`${MODULE_CODE}.${string}`);
 }
@@ -434,6 +442,1218 @@ class RollGuards extends CONFIG.FFXIV.RollGuards {
       return false;
     }
     return true;
+  }
+}
+class DefaultChatHandler {
+  /**
+   * @param {Actor} actor - The actor this handler is for
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * @param {Item} item - The item to create a chat message for
+   */
+  handle(item) {
+    ChatMessage.create({
+      user: game.user.id,
+      speaker: game.settings.get(SYSTEM_ID, "chatMessageSenderIsActorOwner") ? ChatMessage.getSpeaker({ actor: this.actor }) : null,
+      flags: {
+        [SYSTEM_ID]: {
+          data: {
+            chatTemplate: "RollChat",
+            actor: {
+              _id: this.actor._id,
+              name: this.actor.name,
+              img: this.actor.img
+            },
+            item: {
+              _id: item._id,
+              uuid: item.uuid,
+              name: item.name,
+              img: item.img,
+              type: item.type,
+              system: item.system
+            }
+          }
+        }
+      }
+    });
+  }
+}
+class AbilitiesLimiter {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the primary base damage buff effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<boolean>} A promise that resolves to true if the ability should be allowed, false otherwise
+   */
+  async process(event) {
+    this.actor.effects.filter((e) => !e.disabled);
+    const damageOnlyEffect = this.actor.effects.find(
+      (e) => e.name === "Next Ability Does Damage Only" && !e.disabled
+    );
+    if (!damageOnlyEffect) return true;
+    game.system.log.o("[ABILITIES LIMITER] Found Next Ability Does Damage Only effect:", {
+      event,
+      effect: damageOnlyEffect
+    });
+    console.log("[FFXIVA] | [ABILITIES LIMITER] Starting process with effect state:", {
+      effectName: damageOnlyEffect?.name,
+      effectChanges: damageOnlyEffect?.changes,
+      effectOrigin: damageOnlyEffect?.origin,
+      effectFlags: damageOnlyEffect?.flags,
+      effectDuration: damageOnlyEffect?.duration,
+      effectDisabled: damageOnlyEffect?.disabled
+    });
+    if (event.item?.system) {
+      game.system.log.o("[ABILITIES LIMITER] Processing item:", {
+        itemName: event.item.name,
+        itemType: event.item.type,
+        itemSystem: event.item.system,
+        itemEffects: event.item.effects?.map((e) => ({
+          name: e.name,
+          changes: e.changes,
+          flags: e.flags
+        }))
+      });
+      const hasNonDamageEffects = this._hasNonDamageEffects(event.item.system);
+      const hasSourceEffects = this._hasSourceEffects(event.item.system);
+      const hasEnablerEffects = this._hasEnablerEffects(event.item.system);
+      game.system.log.o("[ABILITIES LIMITER] Effect checks:", {
+        itemName: event.item.name,
+        hasNonDamageEffects,
+        hasSourceEffects,
+        hasEnablerEffects,
+        system: {
+          baseEffectDamage: event.item.system.baseEffectDamage,
+          baseEffectHealing: event.item.system.baseEffectHealing,
+          baseEffectBarrier: event.item.system.baseEffectBarrier,
+          baseEffectRestoreMP: event.item.system.baseEffectRestoreMP,
+          directHitType: event.item.system.directHitType,
+          directHitDamage: event.item.system.directHitDamage,
+          grants: event.item.system.grants,
+          sourceGrants: event.item.system.sourceGrants,
+          enables: event.item.system.enables,
+          procs: event.item.system.procs
+        }
+      });
+      if (hasSourceEffects) {
+        game.system.log.o("[ABILITIES LIMITER] Ability has source effects, preventing use:", {
+          itemName: event.item.name,
+          hasSourceEffects
+        });
+        ui.notifications.warn(game.i18n.format("FFXIV.Warnings.NextAbilityDamageOnly"));
+        return false;
+      }
+      if (hasEnablerEffects) {
+        game.system.log.o("[ABILITIES LIMITER] Ability has enabler effects, preventing use:", {
+          itemName: event.item.name,
+          hasEnablerEffects
+        });
+        ui.notifications.warn(game.i18n.format("FFXIV.Warnings.NextAbilityDamageOnly"));
+        return false;
+      }
+      if (hasNonDamageEffects) {
+        game.system.log.o("[ABILITIES LIMITER] Ability has non-damage effects:", {
+          itemName: event.item.name,
+          system: event.item.system
+        });
+        if (!this._hasDamageComponent(event.item.system)) {
+          ui.notifications.warn(game.i18n.format("FFXIV.Warnings.NextAbilityDamageOnly"));
+          return false;
+        }
+        const originalBaseEffectHealing = event.item.system.baseEffectHealing;
+        const originalBaseEffectBarrier = event.item.system.baseEffectBarrier;
+        const originalBaseEffectRestoreMP = event.item.system.baseEffectRestoreMP;
+        const originalDirectHitHealing = event.item.system.directHitHealing;
+        const originalDirectHitBarrier = event.item.system.directHitBarrier;
+        const originalDirectHitRestoreMP = event.item.system.directHitRestoreMP;
+        const originalGrantsList = [...event.item.system.grants?.list || []];
+        const originalProcsList = [...event.item.system.procs?.list || []];
+        event.item.system.baseEffectHealing = null;
+        event.item.system.baseEffectBarrier = null;
+        event.item.system.baseEffectRestoreMP = null;
+        event.item.system.directHitHealing = null;
+        event.item.system.directHitBarrier = null;
+        event.item.system.directHitRestoreMP = null;
+        event.item.system.grants = { list: [], value: false };
+        event.item.system.procs = { list: [], value: false };
+        game.system.log.o("[ABILITIES LIMITER] Modified ability to only do damage:", {
+          itemName: event.item.name,
+          originalHealing: originalBaseEffectHealing,
+          originalBarrier: originalBaseEffectBarrier,
+          originalRestoreMP: originalBaseEffectRestoreMP,
+          originalDirectHitHealing,
+          originalDirectHitBarrier,
+          originalDirectHitRestoreMP,
+          originalGrantsList,
+          originalProcsList,
+          modifiedSystem: event.item.system
+        });
+        ui.notifications.warn(game.i18n.format("FFXIV.Warnings.NextAbilityDamageOnly"));
+      }
+      game.system.log.o("[ABILITIES LIMITER] Attempting to delete effect:", {
+        effectName: damageOnlyEffect.name,
+        effectId: damageOnlyEffect.id,
+        effectDuration: damageOnlyEffect.duration,
+        effectFlags: damageOnlyEffect.flags,
+        effectChanges: damageOnlyEffect.changes,
+        effectDisabled: damageOnlyEffect.disabled
+      });
+      console.log("[FFXIVA] | [ABILITIES LIMITER] About to delete effect:", {
+        effectName: damageOnlyEffect.name,
+        effectId: damageOnlyEffect.id,
+        effectDuration: damageOnlyEffect.duration,
+        effectChanges: damageOnlyEffect.changes,
+        deleteResult: await damageOnlyEffect.delete()
+      });
+      try {
+        await damageOnlyEffect.delete();
+        game.system.log.o("[ABILITIES LIMITER] Successfully deleted effect");
+      } catch (error) {
+        game.system.log.e("[ABILITIES LIMITER] Failed to delete effect:", error);
+      }
+      console.log("[FFXIVA] | [ABILITIES LIMITER] After delete attempt:", {
+        effectStillExists: this.actor.effects.has(damageOnlyEffect.id),
+        remainingEffects: this.actor.effects.map((e) => ({
+          name: e.name,
+          id: e.id
+        }))
+      });
+    }
+    return true;
+  }
+  /**
+   * Check if an ability has any non-damage effects
+   * @param {object} system - The ability's system data
+   * @return {boolean} Whether the ability has non-damage effects
+   * @private
+   */
+  _hasNonDamageEffects(system) {
+    return !!(system.baseEffectHealing || system.baseEffectBarrier || system.baseEffectRestoreMP || system.directHitHealing || system.directHitBarrier || system.directHitRestoreMP || (system.grants?.list || []).length > 0 || (system.procs?.list || []).length > 0);
+  }
+  /**
+   * Check if an ability has any source effects
+   * @param {object} system - The ability's system data
+   * @return {boolean} Whether the ability has source effects
+   * @private
+   */
+  _hasSourceEffects(system) {
+    return !!system.sourceGrants?.list?.length;
+  }
+  /**
+   * Check if an ability has any enabler effects
+   * @param {object} system - The ability's system data
+   * @return {boolean} Whether the ability has enabler effects
+   * @private
+   */
+  _hasEnablerEffects(system) {
+    return !!system.enables?.list?.length;
+  }
+  /**
+   * Check if an ability has any damage component
+   * @param {object} system - The ability's system data
+   * @return {boolean} Whether the ability has a damage component
+   * @private
+   */
+  _hasDamageComponent(system) {
+    return !!(system.baseEffectDamage || system.directHitType === "damage" && system.directHitDamage);
+  }
+}
+class EffectManager {
+  /**
+   * @param {Actor} actor - The actor this handler is for
+   */
+  constructor(actor) {
+    this.actor = actor;
+    this.DefaultChatHandler = new DefaultChatHandler(actor);
+  }
+  /**
+   * Handle all effects for an action
+   * @param {Item} item - The item being used
+   * @param {Object} result - The result from the action handler
+   * @return {Promise<void>} Returns a promise that resolves when all effects are handled
+   */
+  async handleEffects(item, result) {
+    console.log("[FFXIVA] | [EFFECT MANAGER] handleEffects call stack:", item, result);
+    game.system.log.o("[EFFECT MANAGER] Starting handleEffects:", {
+      itemName: item?.name,
+      itemType: item?.type,
+      itemSystem: item?.system,
+      resultData: result,
+      actorEffects: this.actor.effects.map((e) => ({
+        name: e.name,
+        changes: e.changes,
+        flags: e.flags,
+        disabled: e.disabled
+      }))
+    });
+    const abilitiesLimiter = new AbilitiesLimiter(this.actor);
+    const shouldProceed = await abilitiesLimiter.process({ item });
+    game.system.log.o("[EFFECT MANAGER] AbilitiesLimiter check result:", {
+      itemName: item?.name,
+      shouldProceed,
+      hasEnablerEffects: item.system.enables?.list?.length > 0
+    });
+    const { hasTargets, targets } = result;
+    console.log("[FFXIVA] | [EFFECT MANAGER] Target effects check:", {
+      itemName: item?.name,
+      shouldProceed,
+      hasGrants: item.system.grants?.value,
+      grantsList: item.system.grants?.list,
+      hasTargets,
+      targets
+    });
+    if (shouldProceed && item.system.grants?.value && hasTargets) {
+      game.system.log.o("[EFFECT MANAGER] Processing target effects:", {
+        itemName: item.name,
+        grants: item.system.grants,
+        targets: targets.map((t) => t.actor?.name)
+      });
+      const targetArray = targets instanceof Set ? Array.from(targets) : targets;
+      await this._applyEffectsFromList(item, item.system.grants.list, targetArray);
+    }
+    if (shouldProceed && item.system.sourceGrants?.list?.length) {
+      game.system.log.o("[EFFECT MANAGER] Processing source effects:", {
+        itemName: item.name,
+        sourceGrants: item.system.sourceGrants,
+        actor: this.actor.name
+      });
+      await this._applyEffectsFromList(item, item.system.sourceGrants.list, [{ actor: this.actor }]);
+    }
+    if (shouldProceed && item.system.enables?.list?.length > 0) {
+      game.system.log.o("[EFFECT MANAGER] Processing enabler effects:", {
+        itemName: item.name,
+        enables: item.system.enables,
+        actor: this.actor.name
+      });
+      await this._handleEnablerEffects(item);
+    }
+  }
+  /**
+   * Apply effects from a list to specified targets
+   * @protected
+   * @param {Item} sourceItem - The item granting the effects
+   * @param {Array} effectList - List of effect references to process
+   * @param {Array} targets - Array of targets to apply effects to
+   */
+  async _applyEffectsFromList(sourceItem, effectList, targets) {
+    if (!effectList?.length || !targets?.length) {
+      if (!effectList?.length) {
+        game.system.log.w("[EFFECT MANAGER] No effects to apply");
+      }
+      if (!targets?.length) {
+        game.system.log.w("[EFFECT MANAGER] No targets to apply effects to");
+      }
+      return;
+    }
+    game.system.log.o("[EFFECT MANAGER] Processing effects from:", {
+      sourceItem: sourceItem?.name,
+      sourceItemUUID: sourceItem?.uuid,
+      actor: this.actor?.name,
+      effectList,
+      targets: targets.map((t) => t.actor?.name)
+    });
+    for (const target of targets) {
+      const targetActor = target.actor;
+      if (!targetActor) continue;
+      try {
+        const effectData = await this._prepareEffectData(sourceItem, effectList, targetActor);
+        if (effectData.length) {
+          await targetActor.createEmbeddedDocuments("ActiveEffect", effectData);
+        }
+      } catch (error) {
+        game.system.log.e("Error applying effects to target", error);
+        ui.notifications.error(game.i18n.format("FFXIV.Errors.EffectApplicationFailed", { target: targetActor.name }));
+      }
+    }
+  }
+  /**
+   * Prepare effect data from effect items
+   * @protected
+   * @param {Item} sourceItem - The item granting the effects
+   * @param {Array} effectList - List of effect references to process
+   * @param {Actor} targetActor - The actor to check against for existing effects
+   * @return {Promise<Array>} Array of prepared effect data
+   */
+  async _prepareEffectData(sourceItem, effectList, targetActor) {
+    const effectPromises = effectList.flatMap(async (grantRef) => {
+      const effectItem = await fromUuid(grantRef.uuid);
+      if (!effectItem) return [];
+      return effectItem.effects.map((effect) => {
+        const existingEffect = targetActor.effects.find(
+          (e) => e.name === effect.name && e.origin === sourceItem.uuid
+        );
+        if (existingEffect) return null;
+        if (effect.statuses?.size) {
+          return this._handleStatusEffect(effect, targetActor);
+        }
+        return this._prepareCleanEffectData(effect, effectItem, sourceItem);
+      });
+    });
+    return (await Promise.all(effectPromises)).flat().filter(Boolean);
+  }
+  /**
+   * Handle status effect application
+   * @protected
+   * @param {ActiveEffect} effect - The effect to process
+   * @param {Actor} targetActor - The actor to apply the status to
+   * @return {null} Always returns null as statuses are handled directly
+   */
+  _handleStatusEffect(effect, targetActor) {
+    const statuses = Array.from(effect.statuses);
+    const statusesToToggle = statuses.filter((status) => !targetActor.statuses.has(status));
+    if (statusesToToggle.length) {
+      targetActor.toggleStatusEffect(statusesToToggle[0]);
+    }
+    return null;
+  }
+  /**
+   * Prepare clean effect data for creation
+   * @protected
+   * @param {ActiveEffect} effect - The effect to clean
+   * @param {Item} effectItem - The item containing the effect
+   * @param {Item} sourceItem - The item granting the effect
+   * @return {Object} Clean effect data
+   */
+  _prepareCleanEffectData(effect, effectItem, sourceItem) {
+    game.system.log.o("[EFFECT MANAGER] Preparing clean effect data:", {
+      effectName: effect.name,
+      effectItemSystem: effectItem.system,
+      sourceItemSystem: sourceItem.system
+    });
+    const durations = sourceItem.system.durations || effectItem.system.durations || [];
+    const duration = durations[0] || { type: "none" };
+    const durationData = {
+      startTime: game.time.worldTime,
+      startRound: game.combat?.round ?? 0,
+      startTurn: game.combat?.turn ?? 0,
+      combat: game.combat?.id
+    };
+    if (duration.type === "hasAmount" && duration.amount) {
+      durationData.type = duration.units || "rounds";
+      durationData[duration.units === "turns" ? "turns" : "rounds"] = duration.amount;
+    } else if (duration.type === "hasQualifier" && duration.qualifier) {
+      durationData.type = duration.qualifier;
+      if (duration.qualifier === "nextAbility") {
+        durationData.requiresAbility = true;
+      } else if (duration.qualifier === "untilDamage") {
+        durationData.requiresDamage = true;
+      }
+    }
+    game.system.log.o("[EFFECT MANAGER] Prepared duration data:", {
+      effectName: effect.name,
+      durationType: duration.type,
+      durationUnits: duration.units,
+      durationQualifier: duration.qualifier,
+      durationData
+    });
+    return {
+      name: effect.name,
+      img: effect.img,
+      changes: foundry.utils.deepClone(effect.changes),
+      duration: durationData,
+      disabled: false,
+      flags: foundry.utils.deepClone(effect.flags),
+      origin: sourceItem.uuid
+    };
+  }
+  /**
+   * Handle enabler effects for an action
+   * @protected
+   */
+  async _handleEnablerEffects(item) {
+    if (!item.system.enables?.list?.length) return [];
+    const enabledEffects = [];
+    for (const enableRef of item.system.enables.list) {
+      const effects2 = await this._processEnablerRef(item, enableRef);
+      enabledEffects.push(...effects2);
+    }
+    game.system.log.o("[ABILITY:ENABLER] Enabled effects:", enabledEffects);
+    return enabledEffects;
+  }
+  /**
+   * Process a single enabler reference
+   * @protected
+   * @param {Item} sourceItem - The item triggering the enabler
+   * @param {Object} enableRef - The reference to the item to enable
+   * @return {Promise<Array>} Array of enabled effect UUIDs
+   */
+  async _processEnablerRef(sourceItem, enableRef) {
+    const { compendiumItem, actorItem } = await this._findEnablerItems(enableRef);
+    if (!actorItem || !actorItem.hasEffects) return [];
+    if (!await this.actor.actorItemHasRemainingUses(actorItem)) {
+      game.system.log.w("[ENABLE]", `${actorItem.name} has no remaining uses`);
+      return [];
+    }
+    if (actorItem.type === "trait" && actorItem.system.sacrificesMovement) {
+      const canSacrificeMovement = await this._handleMovementSacrifice(actorItem);
+      if (!canSacrificeMovement) return [];
+    }
+    const effectsEnabled = await this.actor.addLinkedEffects(actorItem);
+    if (effectsEnabled.length && sourceItem.name !== actorItem.name) {
+      await this.DefaultChatHandler.handle(actorItem);
+    }
+    return effectsEnabled;
+  }
+  /**
+   * Handle the movement sacrifice mechanic for traits
+   * @protected
+   * @param {Item} item - The item that sacrifices movement
+   * @return {Promise<boolean>} Whether the movement can be sacrificed
+   */
+  async _handleMovementSacrifice(item) {
+    const tokenId = this.actor.token?.id;
+    if (!tokenId) return true;
+    if (getTokenMovement(tokenId) > 0) {
+      ui.notifications.warn(`Cannot enable ${item.name} after moving.`);
+      return false;
+    }
+    if (!game.combat) {
+      ui.notifications.warn("Focus can only be toggled during combat.");
+      return false;
+    }
+    await this.actor.toggleStatusEffect("focus");
+    return true;
+  }
+}
+class ActionHandler {
+  /**
+   * @param {Actor} actor - The actor this handler is for
+   */
+  constructor(actor) {
+    this.actor = actor;
+    this.DefaultChat = new DefaultChatHandler(actor);
+  }
+  /**
+   * Handle an action ability
+   * @param {Item} item - The action item
+   * @param {Object} [options={}] - Additional options
+   * @return {Promise<{success: boolean, message: ChatMessage|null}>} Returns result of action handling
+   */
+  async handle(item, options = {}) {
+    console.log("[FFXIVA] | [ACTION HANDLER] Starting handle", {
+      itemName: item?.name,
+      options,
+      stack: new Error().stack
+      // This will show us the call stack
+    });
+    try {
+      this.options = options;
+      const { targets, hasTargets, targetIds } = this._getActionTargets();
+      const limiterType = this._checkAbilityLimiter();
+      let roll;
+      let isCritical = false;
+      let d20Result = null;
+      let isSuccess;
+      let message;
+      await this._handleCostMP(item);
+      if (item.system.hasCR) {
+        ({ message, roll, isCritical, d20Result, isSuccess } = await this._rollWithCR(item, targets, hasTargets, targetIds));
+      } else {
+        if (item.system.hasBaseEffectDamage || item.system.hasBaseEffectHealing || item.system.hasBaseEffectRestoreMP) {
+          message = await ChatMessage.create(this._createActionMessageData(item, hasTargets, targetIds));
+        } else {
+          this.DefaultChat.handle(item);
+        }
+      }
+      if (limiterType !== "DamageOnly") {
+        if (item.system.baseEffectHealing) {
+          await this._handleHealing(item, this.actor, isCritical);
+        }
+        if (item.system.hasBaseEffectRestoreMP && item.system.baseEffectRestoreMP) {
+          await this._handleMPRestoration(item);
+        }
+        if (item.system.hasBaseEffectBarrier && item.system.baseEffectBP) {
+          await this._handleBarrier(item);
+        }
+      }
+      await Hooks.callAll("FFXIV.onAbilityUse", {
+        actor: this.actor,
+        item,
+        isNewAbilityUse: true
+      });
+      console.log("[FFXIVA] | [ACTION HANDLER] Calling ability use hook", {
+        itemName: item?.name,
+        isNewAbilityUse: true,
+        stack: new Error().stack
+      });
+      return {
+        handledSuccessfully: true,
+        isCritical,
+        roll,
+        d20Result,
+        hasTargets,
+        targets,
+        isSuccess,
+        message
+      };
+    } catch (error) {
+      game.system.log.e("Error in action handler", error);
+      ui.notifications.error(
+        game.i18n.format("FFXIV.Errors.ActionHandlingFailed", { target: this.actor.name })
+      );
+      return { handledSuccessfully: false };
+    }
+  }
+  /**
+   * @internal
+   * Retrieves targets from the user and checks if they exist.
+   */
+  _getActionTargets() {
+    const targets = game.user.targets;
+    const hasTargets = targets.size > 0;
+    const targetIds = Array.from(targets).map((target) => target.id);
+    return { targets, hasTargets, targetIds };
+  }
+  /**
+   * @internal
+   * Creates and returns the final message, roll, and critical data if an item uses CR checks.
+   */
+  async _rollWithCR(item, targets, hasTargets, targetIds) {
+    const { roll, isCritical, d20Result } = await this._handleRollWithModifiers(item);
+    let isSuccess = false;
+    const messageData = this._createActionMessageData(item, hasTargets, targetIds, roll, isCritical);
+    messageData.flags[SYSTEM_ID].data.isCritical = isCritical;
+    messageData.flags[SYSTEM_ID].data.d20Result = d20Result;
+    if (hasTargets) {
+      const {
+        crValue,
+        targetActor
+      } = this._getTargetCRValue(item, targets);
+      isSuccess = this._evaluateSuccess({ roll, crValue, isCritical });
+      game.system.log.o("[ABILITY:ROLL] CR check isSuccess:", isSuccess);
+      messageData.flags[SYSTEM_ID].data.isSuccess = isSuccess;
+      game.system.log.o("[ABILITY:ROLL] CR check:", {
+        itemName: item.name,
+        rollTotal: roll.total,
+        CR: item.system.CR,
+        crValue,
+        isSuccess,
+        isCritical,
+        d20Result
+      });
+    }
+    const message = await roll.toMessage(messageData);
+    return { message, roll, isCritical, d20Result, isSuccess };
+  }
+  /**
+   * @internal
+   * Handle healing from an action
+   * @param {Item} item - The action item
+   * @param {Actor} targetActor - The actor to heal
+   * @param {boolean} isCritical - Whether this was a critical hit
+   * @return {Promise<void>} A promise that resolves when healing is complete
+   */
+  async _handleHealing(item, targetActor, isCritical = false) {
+    if (!item.system.baseEffectHealing) return;
+    const healingRoll = await new Roll(item.system.baseEffectHealing).evaluate();
+    const healingAmount = healingRoll.total;
+    game.system.log.o("[HEALING] Applying healing:", {
+      itemName: item.name,
+      targetName: targetActor.name,
+      healingAmount,
+      isCritical
+    });
+    const currentHP = targetActor.system.points.HP.val;
+    const maxHP = targetActor.system.points.HP.max;
+    const newHP = Math.min(currentHP + healingAmount, maxHP);
+    game.system.log.o("[HEALING] HP values:", {
+      currentHP,
+      maxHP,
+      newHP,
+      healingApplied: newHP - currentHP
+    });
+    await targetActor.update({ "system.points.HP.val": newHP });
+  }
+  /**
+   * @internal
+   * Retrieves the CR value from the first target if available.
+   */
+  _getTargetCRValue(item, targets) {
+    const target = targets.values().next().value;
+    const targetActor = target?.actor;
+    let crValue = 0;
+    if (targetActor) {
+      if (targetActor.type === "npc") {
+        crValue = targetActor.system.attributes[item.system.CR]?.val || 0;
+      } else {
+        crValue = targetActor.system.attributes.secondary[item.system.CR]?.val || 0;
+      }
+    }
+    return { crValue, targetActor };
+  }
+  /**
+   * @internal
+   * Evaluates if a roll is successful based on CR and critical.
+   */
+  _evaluateSuccess({ roll, crValue, isCritical }) {
+    return isCritical || roll.total >= crValue;
+  }
+  /**
+   * @internal
+   * Create message data for an action
+   */
+  _createActionMessageData(item, hasTargets, targets, roll = null, isCritical = false) {
+    const messageData = {
+      id: `${SYSTEM_ID}--message-${generateRandomElementId()}`,
+      speaker: game.settings.get(SYSTEM_ID, "chatMessageSenderIsActorOwner") ? ChatMessage.getSpeaker({ actor: this.actor }) : null,
+      flavor: `${item.name}`,
+      rolls: roll ? [roll] : void 0,
+      flags: {
+        [SYSTEM_ID]: {
+          data: {
+            chatTemplate: "ActionRollChat",
+            actor: this._buildActorData(this.actor),
+            item: this._buildItemData(item),
+            hasTargets,
+            targets,
+            isSuccess: false,
+            isCritical: false,
+            d20Result: null
+          },
+          state: {
+            damageResults: false,
+            initialised: false,
+            mpCost: item.system.hasCostMP ? item.system.costMP : 0,
+            mpRestored: false
+          },
+          css: `leather ${isCritical ? "crit" : ""}`
+        }
+      }
+    };
+    if (roll) {
+      messageData.flags[SYSTEM_ID].data.roll = roll.total;
+    }
+    return messageData;
+  }
+  /**
+   * @internal
+   * Builds a minimal data object for the actor to embed in a chat flag.
+   */
+  _buildActorData(actor) {
+    return {
+      _id: actor._id,
+      uuid: actor.uuid,
+      name: actor.name,
+      img: actor.img
+    };
+  }
+  /**
+   * @internal
+   * Builds a minimal data object for the item to embed in a chat flag.
+   */
+  _buildItemData(item) {
+    return {
+      _id: item._id,
+      uuid: item.uuid,
+      name: item.name,
+      img: item.img,
+      type: item.type,
+      system: {
+        baseEffectHealing: item.system?.baseEffectHealing,
+        baseEffectDamage: item.system?.baseEffectDamage,
+        baseEffectRestoreMP: item.system?.baseEffectRestoreMP,
+        baseEffectBP: item.system?.baseEffectBP,
+        hasBaseEffectBarrier: item.system?.hasBaseEffectBarrier,
+        directHitDamage: item.system?.directHitDamage,
+        hasDirectHit: item.system?.hasDirectHit,
+        CR: item.system?.CR,
+        isHealerRecovery: Boolean(item?.system?.baseEffectHealing)
+      }
+    };
+  }
+  /**
+   * @internal
+   * Handle roll with modifiers
+   */
+  async _handleRollWithModifiers(item) {
+    const formula = this._constructRollFormulaFromModifiers(item);
+    const { rollFormula, rollData } = await this._handleAttributeCheck(item, formula);
+    const roll = await new Roll(rollFormula, rollData).evaluate();
+    const { isCritical, d20Result } = await this._handleCriticalHit(roll, item);
+    game.system.log.o("[ABILITY:ROLL] Roll result:", {
+      itemName: item.name,
+      rollTotal: roll.total,
+      isCritical,
+      d20Result
+    });
+    return { roll, isCritical, d20Result };
+  }
+  /**
+   * @internal
+   * Constructs the roll formula by reading actor's extra modifiers.
+   */
+  _constructRollFormulaFromModifiers(item) {
+    let [diceCount, diceType] = [1, 20];
+    let formula = "";
+    const { bonusDice, penalty } = this.options?.extraModifiers || {};
+    if (bonusDice) {
+      diceCount += parseInt(bonusDice, 10);
+      diceType = "20kh1";
+    }
+    formula = `${diceCount}d${diceType}${penalty ? ` - ${penalty}` : ""}`;
+    return formula;
+  }
+  /**
+   * @internal
+   * Handle critical hit detection and processing
+   */
+  async _handleCriticalHit(roll, item) {
+    const d20Term = roll.terms?.[0];
+    if (!d20Term) {
+      game.system.log.w("[CRITICAL] No d20 term found in roll:", roll);
+      return { isCritical: false, d20Result: 0 };
+    }
+    const d20Result = d20Term.modifiers?.includes("kh1") ? Math.max(...d20Term.results.map((r) => r.result)) : d20Term.results?.[0]?.result ?? 0;
+    const isCritical = d20Result === 20;
+    game.system.log.d("[CRITICAL] Critical hit check:", {
+      d20Result,
+      isCritical,
+      itemName: item.name,
+      isHealerRecovery: Boolean(item?.system?.baseEffectHealing)
+    });
+    if (isCritical) {
+      this._doubleCriticalDamageIfNeeded(item);
+    }
+    return { isCritical, d20Result };
+  }
+  /**
+   * @internal
+   * Doubles relevant "dice" fields if item is a critical hit.
+   */
+  _doubleCriticalDamageIfNeeded(item) {
+    let formulaFields = [];
+    if (Boolean(item?.system?.baseEffectHealing)) {
+      formulaFields.push("baseEffectHealing");
+    }
+    if (!formulaFields.length) {
+      formulaFields = ["directHitDamage", "baseEffectDamage"];
+    }
+    game.system.log.o("[CRITICAL] Doubling damage/healing for critical hit:", {
+      itemName: item.name,
+      formulaFields
+    });
+    for (const field of formulaFields) {
+      const formula = item.system?.[field];
+      game.system.log.o("[CRITICAL] Formula:", {
+        field,
+        formula
+      });
+      if (formula) {
+        const modifiedFormula = formula.replace(/(\d+)d(\d+)/g, (match, count, sides) => {
+          return `${parseInt(count, 10) * 2}d${sides}`;
+        });
+        game.system.log.o("[CRITICAL] Modified formula:", {
+          field,
+          formula,
+          modifiedFormula
+        });
+        item.system[field] = modifiedFormula;
+      }
+    }
+  }
+  /**
+   * @internal
+   * Handle attribute check
+   */
+  async _handleAttributeCheck(item, rollFormula, rollData = {}) {
+    if (item.system.hasCheck) {
+      const attrVal = this.actor.system.attributes.primary[item.system.checkAttribute]?.val || 0;
+      rollData[item.system.checkAttribute] = attrVal;
+      rollFormula += ` + @${item.system.checkAttribute}`;
+    }
+    return { rollFormula, rollData };
+  }
+  /**
+   * @internal
+   * Handle MP cost for an action
+   * @param {Item} item - The action item
+   * @return {Promise<void>} A promise that resolves when MP cost is handled
+   */
+  async _handleCostMP(item) {
+    if (!item.system.hasCostMP || !item.system.costMP) {
+      return;
+    }
+    const cost = item.system.costMP;
+    const currentMP = this.actor.system.points.MP.val;
+    try {
+      await this.actor.update({
+        "system.points.MP.val": currentMP - cost
+      });
+    } catch (error) {
+      game.system.log.e("[MP:COST] Error deducting MP cost:", error);
+      throw error;
+    }
+  }
+  /**
+   * @internal
+   * Handle MP restoration from an action (self only)
+   * @param {Item} item - The action item
+   * @return {Promise<void>} A promise that resolves when MP restoration is complete
+   */
+  async _handleMPRestoration(item) {
+    if (!item.system.baseEffectRestoreMP) {
+      return;
+    }
+    const formula = String(item.system.baseEffectRestoreMP);
+    const mpRoll = await new Roll(formula).evaluate();
+    const mpAmount = mpRoll.total;
+    const currentMP = this.actor.system.points.MP.val;
+    const maxMP = this.actor.system.points.MP.max;
+    const newMP = Math.min(currentMP + mpAmount, maxMP);
+    try {
+      await this.actor.update({ "system.points.MP.val": newMP });
+    } catch (error) {
+      game.system.log.e("[MP:RESTORE] Error restoring MP:", error);
+      throw error;
+    }
+  }
+  /**
+   * @internal
+   * Handle barrier points from an action
+   * @param {Item} item - The action item
+   * @return {Promise<void>} A promise that resolves when barrier is applied
+   */
+  async _handleBarrier(item) {
+    if (!item.system.baseEffectBP) {
+      return;
+    }
+    const barrierAmount = item.system.baseEffectBP;
+    const currentBP = this.actor.system.points.BP.val;
+    const newBP = currentBP + barrierAmount;
+    try {
+      await this.actor.update({ "system.points.BP.val": newBP });
+      const updatedBP = this.actor.system.points.BP.val;
+    } catch (error) {
+      game.system.log.e("[BARRIER] Error applying barrier points:", error);
+      throw error;
+    }
+  }
+  /**
+   * @internal
+   * Check if there are any ability limiters active on the actor
+   * @return {string|null} The type of limitation, if any
+   */
+  _checkAbilityLimiter() {
+    const limiterEffect = this.actor.effects.find(
+      (e) => e.changes.some((c) => c.key === "AbilitiesLimiter")
+    );
+    if (!limiterEffect) return null;
+    const limiterChange = limiterEffect.changes.find((c) => c.key === "AbilitiesLimiter");
+    return limiterChange?.value || null;
+  }
+}
+class AttributeHandler {
+  /**
+   * @param {Actor} actor - The actor this handler is for
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Handle an action ability
+   * @param {Object} [options={}] -  options
+   * @return {Promise<{success: boolean, message: ChatMessage|null}>} Returns result of action handling
+   */
+  async handle(options = {}) {
+    const { key, code } = options;
+    const attributeValue = this.actor.system.attributes[key][code].val;
+    const rollFormula = `1d20 + ${attributeValue}`;
+    const attributeName = game.i18n.localize(`FFXIV.Types.Actor.Types.PC.Attributes.${key}.${code}.Abbreviation`);
+    const roll = await new Roll(rollFormula).evaluate({ async: true });
+    const isCritical = roll.total === 20;
+    const messageData = {
+      speaker: game.settings.get(SYSTEM_ID, "chatMessageSenderIsActorOwner") ? ChatMessage.getSpeaker({ actor: this.actor }) : null,
+      flavor: `${attributeName} ${game.i18n.localize("FFXIV.Check")}`,
+      type: CONST.CHAT_MESSAGE_TYPES.ROLL,
+      roll,
+      flags: {
+        [SYSTEM_ID]: {
+          data: {
+            chatTemplate: "AttributeRollChat",
+            actor: {
+              _id: this.actor._id,
+              name: this.actor.name,
+              img: this.actor.img
+            },
+            flavor: `${attributeName} ${game.i18n.localize("FFXIV.Check")}`,
+            key,
+            code,
+            modifier: attributeValue,
+            isCritical
+          },
+          css: `attribute-roll ${isCritical ? "crit" : ""}`
+        }
+      }
+    };
+    await roll.toMessage(messageData);
+  }
+}
+class CombatSlotManager {
+  /**
+   * @param {Actor} actor - The actor this handler is for
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Mark a slot as used in the combat tracker
+   * @param {Item} item - The item being used
+   * @param {Object} result - The result from the action handler
+   * @return {Promise<void>} Returns a promise that resolves when the slot is marked
+   */
+  async markSlotUsed(item, result) {
+    const { message } = result;
+    const actionType = item.system.type || "primary";
+    const state = message?.flags?.[SYSTEM_ID]?.state;
+    if (state?.damageResults) {
+      const hasAppliedDamage = Object.values(state.damageResults).some((result2) => result2.applied);
+      if (hasAppliedDamage) {
+        game.system.log.w("[SLOT:USAGE] Message already has applied damage results, skipping slot update");
+        return;
+      }
+    }
+    if (item.system.type === "reaction") {
+      await this.actor.update({
+        "system.actionState.usedReaction": true
+      });
+      return;
+    }
+    let slotToUse;
+    game.system.log.o("[SLOT:USAGE] Checking slots:", {
+      itemName: item.name,
+      actionType,
+      itemTags: item.system.tags,
+      itemSystem: item.system,
+      requires: item.system.requires
+    });
+    if (this.actor.system.actionState.available.includes(actionType)) {
+      slotToUse = actionType;
+      game.system.log.o("[SLOT:USAGE] Using default action type slot:", actionType);
+    } else if (actionType === "secondary" && this.actor.system.actionState.available.includes("primary")) {
+      slotToUse = "primary";
+      game.system.log.o("[SLOT:USAGE] Using primary slot for secondary action");
+    }
+    if (!slotToUse && item.system.tags?.length) {
+      const customSlots = this.actor.system.actionState.available.filter(
+        (slot) => slot !== "primary" && slot !== "secondary"
+      );
+      const matchingSlot = customSlots.find(
+        (slot) => item.system.tags.includes(slot)
+      );
+      if (matchingSlot) {
+        slotToUse = matchingSlot;
+        game.system.log.o("[SLOT:USAGE] Found matching slot:", {
+          slot: matchingSlot,
+          itemName: item.name,
+          itemTags: item.system.tags
+        });
+        const enablerEffectForThisSlot = this.actor.enablerEffects.find(
+          (effect) => effect.changes.some(
+            (change) => change.value === matchingSlot
+          )
+        );
+        if (enablerEffectForThisSlot) {
+          game.system.log.o("[SLOT:USAGE] Found enabler effect:", {
+            effectName: enablerEffectForThisSlot.name,
+            changes: enablerEffectForThisSlot.changes,
+            origin: enablerEffectForThisSlot.origin
+          });
+          const originItemUuid = enablerEffectForThisSlot.getFlag(SYSTEM_ID, "originEffect.uuid")?.split(".").slice(0, -2).join(".");
+          if (originItemUuid) {
+            const originItem = fromUuidSync(originItemUuid);
+            if (originItem) {
+              game.system.log.o("[SLOT:USAGE] Found origin item:", {
+                name: originItem.name,
+                currentUses: originItem.system.uses,
+                maxUses: originItem.system.maxUses
+              });
+              const uses = (originItem.system.uses || 0) + 1;
+              await originItem.update({ system: { uses } });
+            }
+            game.system.log.o("[SLOT:USAGE] Removing enabler effect:", enablerEffectForThisSlot.name);
+            await enablerEffectForThisSlot.delete();
+          }
+        }
+      }
+    }
+    if (!slotToUse) {
+      game.system.log.w("[SLOT:USAGE] No slot found to use for:", item.name);
+      return;
+    }
+    const newAvailable = [...this.actor.system.actionState.available];
+    const indexToRemove = newAvailable.findIndex((slot) => slot === slotToUse);
+    if (indexToRemove !== -1) {
+      newAvailable.splice(indexToRemove, 1);
+    }
+    const newUsed = [...this.actor.system.actionState.used, {
+      type: slotToUse,
+      messageId: message?.id
+    }];
+    game.system.log.o("[SLOT:USAGE] Updating action state:", {
+      oldAvailable: this.actor.system.actionState.available,
+      newAvailable,
+      oldUsed: this.actor.system.actionState.used,
+      newUsed,
+      itemName: item.name,
+      slotUsed: slotToUse
+    });
+    await this.actor.update({
+      "system.actionState.available": newAvailable,
+      "system.actionState.used": newUsed
+    });
+  }
+}
+class GuardManager {
+  /**
+   * @param {Actor} actor - The actor this handler is for
+   * @param {RollGuards} rollGuards - The RollGuards instance to use for checks
+   */
+  constructor(actor) {
+    this.actor = actor;
+    this.RG = new RollGuards(actor);
+  }
+  /**
+   * Handle guards for an item
+   * @param {Item} item - The item to check guards for
+   * @param {Array<string>} guardMethodNames - Array of guard method names to check
+   * @return {Promise<boolean>} Returns true if all guards pass, false otherwise
+   */
+  async handleGuards(item, guardMethodNames) {
+    for (const methodName of guardMethodNames) {
+      const guardMethod = this.RG[methodName];
+      if (!guardMethod) {
+        game.system.log.w(`[GUARD] Guard method ${methodName} not found`);
+        continue;
+      }
+      try {
+        const result = await guardMethod.call(this.RG, item);
+        if (!result) {
+          game.system.log.d(`[GUARD] ${methodName} check failed for ${item.name}`);
+          return false;
+        }
+      } catch (error) {
+        game.system.log.e(`[GUARD] Error in ${methodName} check:`, error);
+        return false;
+      }
+    }
+    return true;
+  }
+}
+class RollCalcActor extends CONFIG.FFXIV.RollCalc {
+  constructor(params) {
+    super(params);
+    this.params = params;
+    this.ActionHandler = new ActionHandler(params.actor);
+    this.AttributeHandler = new AttributeHandler(params.actor);
+    this.EffectManager = new EffectManager(params.actor);
+    this.CombatSlotManager = new CombatSlotManager(params.actor);
+    this.GuardManager = new GuardManager(params.actor);
+    this.DefaultChat = new DefaultChatHandler(params.actor);
+  }
+  /**
+   * @param {Item} item - The item to create a chat message for
+   */
+  defaultChat(item) {
+    this.DefaultChat.handle(item);
+  }
+  /**
+   * @param {Item} item - The equipment item
+   */
+  equipment(item) {
+    this.params.item = item;
+    ChatMessage.create({
+      user: game.user.id,
+      speaker: game.settings.get(SYSTEM_ID, "chatMessageSenderIsActorOwner") ? ChatMessage.getSpeaker({ actor: this.params.actor }) : null,
+      flags: { [SYSTEM_ID]: { data: { ...this.params, chatTemplate: "EquipmentChat" } } }
+    });
+  }
+  /**
+   * @param {string} key - The attribute key
+   * @param {string} code - The attribute code
+   */
+  attribute(key, code) {
+    this.AttributeHandler.handle({ key, code });
+  }
+  /**
+   * @param {string} type - The type of ability
+   * @param {Item} item - The ability item
+   */
+  ability(type, item) {
+    console.log("[FFXIVA] | [ABILITY CHAIN] Starting ability chain", {
+      // Add relevant details
+    });
+    this._routeAbility(item);
+  }
+  /**
+   * @param {Item} item - The trait item
+   */
+  abilityTrait(item) {
+    this.defaultChat(item);
+  }
+  /**
+   * @param {Item} item - The action item
+   * @param {Object} [options={}] - Additional options
+   */
+  async abilityAction(item, options = {}) {
+    console.log("[FFXIVA] | [ROLL CALC] abilityAction call stack:", {
+      stack: new Error().stack,
+      itemName: item?.name,
+      options
+    });
+    try {
+      if (!await this.GuardManager.handleGuards(item, [
+        "isAction",
+        "hasNoUnappliedDamage",
+        "isActorsTurn",
+        "isReaction",
+        "targetsMatchActionIntent",
+        "hasRequiredEffects",
+        "hasAvailableActionSlot",
+        "hasRemainingUses",
+        "meetsMPCost",
+        "hasModifiers"
+      ])) {
+        return;
+      }
+      const extraModifiers = this.GuardManager.RG.shuttle.hasModifiers.extraModifiers;
+      const result = await this.ActionHandler.handle(item, { ...options, extraModifiers });
+      if (!result.handledSuccessfully) {
+        return;
+      }
+      if (item.system.procTrigger) {
+        Hooks.callAll("FFXIV.ProcTrigger", {
+          actor: this.params.actor,
+          item,
+          roll: result.roll,
+          targets: result.targets
+        });
+      }
+      await this.EffectManager.handleEffects(item, result);
+      await this.CombatSlotManager.markSlotUsed(item, result);
+    } catch (error) {
+      game.system.log.e("Error in ability action", error);
+      ui.notifications.error(game.i18n.format("FFXIV.Errors.AbilityActionFailed", { target: this.params.actor.name }));
+    }
+  }
+  /**
+   * Route ability to appropriate handler
+   * @param {Item} item - The item to route
+   * @return {Promise<void>} Returns a promise that resolves when the ability has been routed and handled
+   */
+  _routeAbility(item) {
+    if (item.type === "action") {
+      this.abilityAction(item);
+    } else if (item.type === "trait") {
+      this.abilityTrait(item);
+    }
   }
 }
 function noop() {
@@ -1347,9 +2567,9 @@ function derived(stores, fn, initial_value) {
 }
 const mappedGameTargets = writable(false);
 const tokenMovement = /* @__PURE__ */ new Map();
-const getTokenMovement = (tokenId) => tokenMovement.get(tokenId) || 0;
+const getTokenMovement$1 = (tokenId) => tokenMovement.get(tokenId) || 0;
 const addTokenMovement = (tokenId, distance) => {
-  const current = getTokenMovement(tokenId);
+  const current = getTokenMovement$1(tokenId);
   tokenMovement.set(tokenId, current + distance);
 };
 const resetTokenMovement = (tokenId) => {
@@ -1841,7 +3061,7 @@ class DurationManager {
    */
   async getDurationRules(effect) {
     const originItem = await fromUuid(effect.origin);
-    console.log("[FFXIV] | [DURATION MANAGER] Getting duration rules:", {
+    console.log("[FFXIVA] | [DURATION MANAGER] Getting duration rules:", {
       effectName: effect.name,
       originUuid: effect.origin,
       originItem,
@@ -1939,7 +3159,7 @@ class DurationManager {
    * @return {Promise<void>} A promise that resolves when processing is complete
    */
   async onAbilityUse(event) {
-    console.log("[FFXIV] | [DURATION MANAGER] Full effect details:", {
+    console.log("[FFXIVA] | [DURATION MANAGER] Full effect details:", {
       effects: this.actor.effects.map((e) => ({
         name: e.name,
         durations: e.system?.durations,
@@ -1951,7 +3171,7 @@ class DurationManager {
         changes: e.changes
       }))
     });
-    console.log("[FFXIV] | [DURATION MANAGER] onAbilityUse called:", {
+    console.log("[FFXIVA] | [DURATION MANAGER] onAbilityUse called:", {
       itemName: event.item?.name,
       itemType: event.item?.type,
       isNewAbilityUse: event.isNewAbilityUse,
@@ -15607,7 +16827,7 @@ function dontShowWelcome() {
   });
 }
 function combatStartSound() {
-  gameSettings.register({
+  game.settings.register({
     namespace: MODULE_ID,
     key: "combatStartSound",
     options: {
@@ -15659,7 +16879,7 @@ function setupEffectsProcessors() {
     await processor.onDamage(event);
   });
   Hooks.on("FFXIV.onAbilityUse", async (event) => {
-    console.log("[FFXIV] | [EFFECTS PROCESSOR] Handling onAbilityUse hook", {
+    console.log("[FFXIVA] | [EFFECTS PROCESSOR] Handling onAbilityUse hook", {
       event,
       itemName: event.item?.name,
       isNewAbilityUse: event.isNewAbilityUse
@@ -15694,7 +16914,7 @@ const hooks = {
   onDamage,
   onAbilityUse
 };
-console.log("[FFXIV] | [HOOKS] Setting up hooks");
+console.log("[FFXIVA] | [HOOKS] Setting up hooks");
 function onDamage() {
   Hooks.on("FFXIVA.onDamage", async (event) => {
     const actor = event.actor;
@@ -15704,9 +16924,9 @@ function onDamage() {
   });
 }
 function onAbilityUse() {
-  console.log("[FFXIV] | [HOOKS] Registering onAbilityUse hook");
+  console.log("[FFXIVA] | [HOOKS] Registering onAbilityUse hook");
   Hooks.on("FFXIVA.onAbilityUse", async (event) => {
-    console.log("[FFXIV] | [ABILITY USE HOOK] Hook triggered", {
+    console.log("[FFXIVA] | [ABILITY USE HOOK] Hook triggered", {
       itemName: event.item?.name,
       isNewAbilityUse: event.isNewAbilityUse,
       stack: new Error().stack
@@ -15715,6 +16935,8 @@ function onAbilityUse() {
 }
 CONFIG.Combat.documentClass = FFCombat;
 CONFIG.FFXIV.RollGuards = RollGuards;
+CONFIG.FFXIV.EffectManager = EffectManager;
+CONFIG.FFXIV.RollCalcActor = RollCalcActor;
 hooks.init();
 hooks.ready();
 hooks.combatStart();
@@ -15728,21 +16950,21 @@ let totalDistance = 0;
 Hooks.on("preUpdateToken", async (tokenDocument, update2, options, userId) => {
   console.log("preUpdateToken", tokenDocument, update2, options);
   if (options.isUndo) {
-    const currentMovement = getTokenMovement(tokenDocument.id);
+    const currentMovement = getTokenMovement$1(tokenDocument.id);
     const lastSegmentDistance = canvas.controls.ruler?.totalDistance || 0;
     if (currentMovement > 0) {
       addTokenMovement(tokenDocument.id, -Math.abs(lastSegmentDistance));
       console.log("Undo movement:", {
         tokenId: tokenDocument.id,
         subtractedDistance: lastSegmentDistance,
-        newTotal: getTokenMovement(tokenDocument.id)
+        newTotal: getTokenMovement$1(tokenDocument.id)
       });
     }
     return;
   }
   if (!arrowKeysPressed) {
     const availableMovement = tokenDocument.actor.system.attributes.secondary.spd.val;
-    const currentMovement = getTokenMovement(tokenDocument.id);
+    const currentMovement = getTokenMovement$1(tokenDocument.id);
     if (game.combat?.started) {
       const currentCombatant = game.combat.combatant;
       const isCurrentTurn = currentCombatant?.token?.id === tokenDocument.id;
@@ -15780,7 +17002,7 @@ Hooks.on("preUpdateToken", async (tokenDocument, update2, options, userId) => {
       console.log("After adding movement:", {
         tokenId: tokenDocument.id,
         addedDistance: Number(measureDistance),
-        newTotal: Number(getTokenMovement(tokenDocument.id))
+        newTotal: Number(getTokenMovement$1(tokenDocument.id))
       });
     }
   } else {

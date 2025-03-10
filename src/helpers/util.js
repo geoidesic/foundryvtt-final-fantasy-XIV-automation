@@ -38,6 +38,20 @@ export function truncate(str, n) {
   return str.length > n ? str.substr(0, n - 1) + "..." : str;
 }
 
+/**
+ * Generates a random element ID
+ * @param {number} length - The length of the ID
+ * @return {string} The generated ID
+ */
+export function generateRandomElementId(length = 8) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 export function getActorOwner(actor) {
   const owners = getOwners(actor);
   if (owners.length === 0) {
@@ -93,6 +107,7 @@ export const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  * @return {string} The localized string
  */
 export function localize(string) {
+  console.log("[FFXIVA] | [UTIL] localize", MODULE_CODE, string);
   return game.i18n.localize(`${MODULE_CODE}.${string}`);
 }
 

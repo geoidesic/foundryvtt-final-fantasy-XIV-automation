@@ -2,6 +2,8 @@ import '~/src/styles/Main.sass';
 
 import FFACombat from './extensions/combat.js'
 import RollGuards from "~/src/helpers/rolls/RollGuards";
+import EffectManager from "~/src/helpers/rolls/handlers/EffectManager";
+import RollCalcActor from "~/src/helpers/rolls/RollCalcActor";
 import hooks from "~/src/hooks";
 import { getTokenMovement, addTokenMovement } from '~/src/stores';
 
@@ -14,6 +16,8 @@ CONFIG.Combat.documentClass = FFACombat
 
 //- Override the standard FFXIVroll guards with an extension for automation
 CONFIG.FFXIV.RollGuards = RollGuards;
+CONFIG.FFXIV.EffectManager = EffectManager;
+CONFIG.FFXIV.RollCalcActor = RollCalcActor;
 
 //- Foundry game Hooks
 hooks.init();

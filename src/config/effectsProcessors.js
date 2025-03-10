@@ -54,7 +54,7 @@ export function setupEffectsProcessors() {
 
   // Add hook for ability-use-based duration effects
   Hooks.on('FFXIV.onAbilityUse', async (event) => {
-    console.log("[FFXIV] | [EFFECTS PROCESSOR] Handling onAbilityUse hook", {
+    console.log("[FFXIVA] | [EFFECTS PROCESSOR] Handling onAbilityUse hook", {
       event,
       itemName: event.item?.name,
       isNewAbilityUse: event.isNewAbilityUse
