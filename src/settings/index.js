@@ -1,13 +1,13 @@
 import { MODULE_ID } from '~/src/helpers/constants';
-import { log } from '~/src/helpers/utility';
 
 export function registerSettings(app) {
-  log.i("Building module settings");
+  game.system.log.i(`Building ${MODULE_ID} settings`);
 
   /** World Settings */
 
   /** User settings */
   dontShowWelcome()
+  combatStartSound()
 
 }
 
@@ -19,5 +19,27 @@ function dontShowWelcome() {
     config: true,
     default: false,
     type: Boolean,
+  });
+}
+
+/**
+ * Configures the sound played when combat starts.
+ * Allows users to set a custom sound effect that plays when
+ * a new combat encounter begins.
+ * @return {void}
+ */
+function combatStartSound() {
+  gameSettings.register({
+    namespace: MODULE_ID,
+    key: 'combatStartSound',
+    options: {
+      name: localize('Setting.combatStartSound.Name'),
+      hint: localize('Setting.combatStartSound.Hint'),
+      scope: 'user',
+      config: true,
+      default: 'sounds/drums.wav',
+      type: String,
+      filePicker: "any",
+    }
   });
 }
