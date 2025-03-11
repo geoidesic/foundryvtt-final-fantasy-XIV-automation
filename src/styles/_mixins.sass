@@ -1,0 +1,331 @@
+@use "sass:string"
+
+  
+//- used in Main.sass
+=badge($background: var(--color-highlight), $color: var(--color-highlight-light), $size: 0.75rem, $borderRadius: 1000px, $borderColor: var(--ff-border-color)) 
+  background: $background
+  color: #fff
+  font-size: $size
+  background-color: $background
+  color: $color
+  margin-right: 0.2em
+  text-align: center
+  border: 1px solid $borderColor
+  border-radius: $borderRadius
+  &.small
+    padding: 1px 4px
+    line-height: 1rem
+    display: inline-flex
+    font-size: smaller
+  &.smaller
+    padding: 0px 2px
+    line-height: 0.9rem
+    display: inline-flex
+    font-size: 0.6rem
+
+=inset($padding: 0.5rem 0.5rem 0 0.5rem, $shadow: 0 -3px 20px rgba(165, 131, 99, 1) inset, $margin: 0 0 0 0)
+  padding: $padding
+  border: 1px solid #ccc
+  border-radius: 0.4rem
+  box-shadow: $shadow
+  margin: $margin
+  // background: green
+
+=background($color: rgb(154 48 53), $opacity: 0.05, $border: 4px ridge var(--ff-border-color))
+  .background
+    width: 100%
+    background-color: $color
+    position: relative
+    overflow: hidden
+    border: $border
+
+    .texture
+      position: absolute
+      top: 0
+      left: 0
+      width: 100%
+      height: 100%
+      pointer-events: none
+
+      background-image: url("/systems/foundryvtt-final-fantasy/assets/diamonds.png")
+      // background-image: url("systems/foundryvtt-final-fantasy/assets/royal-tile.png")
+      background-size: 40%
+      background-repeat: repeat
+      opacity: $opacity
+      z-index: 1
+
+=cornice
+  svg
+    width: var(--size)
+    height: var(--size)
+    stroke: currentColor
+    fill: none
+    transform: rotate(var(--rotation))
+    transform-origin: center
+  path
+    stroke-width: var(--stroke-width)
+
+=flex-row 
+  display: flex
+  flex-direction: row
+
+=flex-column 
+  display: flex
+  flex-direction: column
+
+=flex-group-center 
+  align-items: center
+  justify-content: center
+  text-align: center
+
+=flex-group-left 
+  align-items: center
+  justify-content: flex-start
+  text-align: left
+
+=flex-group-right 
+  align-items: center
+  justify-content: flex-end
+  text-align: right
+
+=flex-group-top 
+  align-items: center
+  justify-content: flex-start
+  text-align: center
+
+=flex-group-top-right 
+  align-items: flex-end
+  justify-content: flex-start
+  text-align: right
+
+=flex-group-top-left 
+  align-items: flex-start
+  justify-content: flex-start
+  text-align: left
+
+=flex-space-between 
+  align-items: center
+  justify-content: space-between
+  text-align: center
+
+=flex-space-evenly 
+  align-items: center
+  justify-content: space-evenly
+  text-align: center
+
+=border 
+  border-style: var(--border-style)
+  border-width: var(--border-width)
+  border-color: var(--player-color)
+
+=border-top 
+  border-top: var(--border-style)
+  border-width: var(--border-width)
+  border-color: var(--ff-border-color)
+
+=border-top-bottom 
+  border-top: var(--border-style)
+  border-bottom: var(--border-style)
+  border-width: var(--border-width)
+  border-color: var(--ff-border-color)
+
+=border-bottom 
+  border-bottom: var(--border-style)
+  border-width: var(--border-width)
+  border-color: var(--ff-border-color)
+
+=panel-1 
+  background: var(--panel-1-background)
+  color: var(--panel-1-color)
+  --border-color: var(--panel-1-color)
+
+
+=pulse($color: #fff, $duration: 1.2s) 
+  animation: pulse $duration infinite ease-out
+  color: $color
+  text-shadow: lightblue 0 0 4px
+
+  @keyframes pulse 
+
+    0% 
+      opacity: 1
+
+    25% 
+      opacity: 0.5
+
+    100% 
+      opacity: 1
+
+=buttons
+  .buttons
+    position: relative
+    display: flex
+    flex-direction: row
+    flex-wrap: nowrap
+    justify-content: flex-start
+    align-items: center
+    gap: 4px
+    margin: 0
+    padding: 0
+    list-style: none
+
+  &:active
+    -webkit-box-shadow: inset 0 1px 1px #aaa, inset 0 -1px 1px #aaa
+    border-color: #888 #aaa #eee
+
+  .embossButton
+    border: 1px solid transparent
+    border-radius: 3px
+    background-color: rgba(255, 255, 255, 0.5)
+    cursor: pointer
+
+=button 
+  & 
+    box-sizing: border-box
+    display: flex
+    flex-direction: row
+    align-items: center
+    justify-content: center
+    text-align: center
+    border-style: var(--button-border-style)
+    border-radius: var(--button-border-radius)
+    border-width: var(--button-border-width)
+    border-color: var(--button-border-color)
+    background: var(--button-background)
+    font-size: var(--button-font-size)
+    font-weight: var(--button-font-weight)
+    padding: var(--button-padding)
+    color: var(--button-color)
+    line-height: var(--button-line-height)
+    margin: 0
+    background-color: transparent
+    
+  &:disabled 
+    cursor: default
+    background: var(--button-background-disabled)
+
+  &:hover 
+    &:not(:disabled) 
+      background: radial-gradient(var(--sheet-color), transparent)
+   
+=white-shadow-header($font-size: var(--size-md-h))
+  /* @vite-ignore */
+  .header
+    position: relative
+    font-size: $font-size
+    color: #fff
+    text-shadow: 0 3px 3px #000
+
+=white-shadow-underscore($height: 2px, $color: #fff, $shadow-color: #000, $shadow-depth: 3px, $bottom: -0.1em, $left: 0, $width: 100%, $border-width: 0px)
+  /* @vite-ignore */
+  .underscore
+    /* @vite-ignore */
+    &:after
+      content: ''
+      position: absolute
+      left: $left
+      border: $border-width solid transparent 
+      border-radius: 4px
+      bottom: $bottom 
+      width: $width
+      height: $height 
+      background-color: $color 
+      box-shadow: 0 $shadow-depth $shadow-depth $shadow-color 
+
+  &
+    position: relative 
+
+=cursor-dice
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='26' viewBox='0 0 32 26'%3E%3Cg transform='matrix(0.05,0,0,0.05,0,0)' fill='%23a58363'%3E%3Cpath d='M274.9,34.3C246.8,6.2 201.2,6.2 173.1,34.3L34.3,173.1C6.2,201.2 6.2,246.8 34.3,274.9L173.1,413.7C201.2,441.8 246.8,441.8 274.9,413.7L413.7,274.9C441.8,246.8 441.8,201.2 413.7,173.1L274.9,34.3ZM200,224C200,210.834 210.834,200 224,200C237.166,200 248,210.834 248,224C248,237.166 237.166,248 224,248C210.834,248 200,237.166 200,224ZM96,200C109.166,200 120,210.834 120,224C120,237.166 109.166,248 96,248C82.834,248 72,237.166 72,224C72,210.834 82.834,200 96,200ZM224,376C210.834,376 200,365.166 200,352C200,338.834 210.834,328 224,328C237.166,328 248,338.834 248,352C248,365.166 237.166,376 224,376ZM352,200C365.166,200 376,210.834 376,224C376,237.166 365.166,248 352,248C338.834,248 328,237.166 328,224C328,210.834 338.834,200 352,200ZM224,120C210.834,120 200,109.166 200,96C200,82.834 210.834,72 224,72C237.166,72 248,82.834 248,96C248,109.166 237.166,120 224,120ZM320,448C320,483.3 348.7,512 384,512L576,512C611.3,512 640,483.3 640,448L640,256C640,220.7 611.3,192 576,192L461.7,192C473.3,228 464.8,269 436.3,297.5L320,413.8L320,448ZM480,328C493.166,328 504,338.834 504,352C504,365.166 493.166,376 480,376C466.834,376 456,365.166 456,352C456,338.834 466.834,328 480,328Z' style='fill-rule:nonzero;'/%3E%3C/g%3E%3C/svg%3E%0A") 32 26, pointer
+
+=texture-background($color: rgb(74, 29, 20))
+  width: 100%
+  @if string.index(#{$color}, "var(--")
+    // Handle CSS variable
+    background-color: #{$color}
+  @else
+    // Handle direct RGB/RGBA value
+    background-color: $color
+  position: relative
+  overflow: hidden
+
+=texture-texture($intensity: 0.1, $bgSize: 80%)
+  .texture
+    pointer-events: none
+    position: absolute
+    top: 0
+    left: 0
+    width: 100%
+    height: 100%
+    background-image: url("/systems/foundryvtt-final-fantasy/assets/diamonds.png")
+    background-size: $bgSize
+    background-repeat: repeat
+    mix-blend-mode: multiply
+    filter: opacity($intensity)
+    z-index: 1
+
+=input
+  box-sizing: border-box
+  border-style: var(--input-border-style)
+  border-radius: var(--input-border-radius)
+  border-width: var(--input-border-width)
+  border-color: var(--input-color)
+  background: var(--input-background)
+  // font-size: var(--font-size);
+  // font-family: var(--font-family);
+  // font-weight: var(--font-weight);
+  // text-align: var(--text-alignment);
+  height: var(--input-height)
+  width: var(--input-width)
+  padding: var(--input-padding)
+  color: var(--input-color)
+
+=input-disabled
+  border-style: var(--input-border-style)
+  border-width: var(--input-border-width)
+  border-color: var(--input-border-color)
+  color: var(--font-color)
+  background: var(--static-value-background)
+  opacity: var(--disabled-opacity)
+
+=itemSheetDescriptionTab
+  .flexrow
+    gap: 2px
+
+  .flexcol
+    gap: 2px
+
+  // label
+  //   margin: 0
+  //   padding: 0
+
+  // .box
+  //   background: silver
+  //   border: 1px
+
+  .properties-list
+    list-style: none
+    margin: 0
+    padding: 0
+
+    :global(>li)
+      margin: 3px 0
+      padding: 0 2px
+      background: rgba(0, 0, 0, 0.05)
+      border: 2px groove #eeede0
+      text-align: center
+      font-size: 12px
+      line-height: 18px
+
+=description-wrapper
+  max-height: 0
+  overflow: hidden
+  transition: max-height 0.2s cubic-bezier(0, 1, 0, 1)
+  .flexrow
+    opacity: 0
+    transition: opacity 0.15s ease-out
+    &.visible
+      opacity: 1
+  &.expanded
+    max-height: 500px
+    transition: max-height 0.2s cubic-bezier(0.4, 0, 0.2, 1)

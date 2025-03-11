@@ -3,8 +3,21 @@ const MODULE_TITLE = "Final Fantasy XIV Automation";
 const MODULE_CODE = "FFXIVA";
 const SYSTEM_ID = "foundryvtt-final-fantasy";
 const ACTIVE_EFFECT_MODES = {
-  CUSTOM: 0
+  CUSTOM: 0,
+  MULTIPLY: 1,
+  ADD: 2,
+  OVERRIDE: 3,
+  DOWNGRADE: 4,
+  UPGRADE: 5
 };
+const activeEffectModes = [
+  { value: ACTIVE_EFFECT_MODES.CUSTOM, label: "custom" },
+  { value: ACTIVE_EFFECT_MODES.MULTIPLY, label: "multiply" },
+  { value: ACTIVE_EFFECT_MODES.ADD, label: "add" },
+  { value: ACTIVE_EFFECT_MODES.OVERRIDE, label: "override" },
+  { value: ACTIVE_EFFECT_MODES.DOWNGRADE, label: "downgrade" },
+  { value: ACTIVE_EFFECT_MODES.UPGRADE, label: "upgrade" }
+];
 function generateRandomElementId(length = 8) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let result = "";
@@ -13,7 +26,8 @@ function generateRandomElementId(length = 8) {
   }
   return result;
 }
-function localize$2(string) {
+function localize$1(string) {
+  console.log("[FFXIVA] | [UTIL] localize", MODULE_CODE, string);
   return game.i18n.localize(`${MODULE_CODE}.${string}`);
 }
 const resetActionState = async (actor) => {
@@ -90,6 +104,863 @@ class FFCombat extends BaseFFCombat {
     }
   }
 }
+class PrimaryBaseDamageBuff {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the primary base damage buff effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    const effects2 = this.actor.effects.filter((e) => !e.disabled);
+    for (const effect of effects2) {
+      const origin = await fromUuid(effect.origin);
+      for (const change of effect.changes) {
+        if (change.key === "PrimaryBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+          for (const [tokenId, targetData] of event.DamageResults) {
+            targetData.damage;
+            targetData.damage = parseInt(targetData.damage) + parseInt(change.value);
+            targetData.baseDamageFormula += ` + ${origin.name} (${change.value})`;
+          }
+        }
+      }
+    }
+  }
+}
+class AbilityBaseDamageBuff {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the primary base damage buff effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    const { DamageResults } = event;
+    game.system.log.o("[ABILITY DAMAGE BUFF] Processing ability base damage buff effect", {
+      DamageResults,
+      actorEffects: this.actor.effects
+    });
+    for (const effect of this.actor.effects) {
+      const origin = fromUuidSync(effect.origin);
+      game.system.log.o("[ABILITY DAMAGE BUFF] Processing effect:", {
+        effect,
+        origin,
+        changes: effect.changes
+      });
+      for (const change of effect.changes) {
+        game.system.log.o("[ABILITY DAMAGE BUFF] Checking change:", {
+          key: change.key,
+          mode: change.mode,
+          value: change.value,
+          matches: change.key === "AbilityBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM
+        });
+        if (change.key === "AbilityBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+          for (const [tokenId, targetData] of DamageResults) {
+            const oldDamage = targetData.damage;
+            targetData.damage = parseInt(targetData.damage) + parseInt(change.value);
+            targetData.baseDamageFormula += ` + ${origin.name} (${change.value})`;
+            game.system.log.o("[ABILITY DAMAGE BUFF] Applied damage buff:", {
+              tokenId,
+              oldDamage,
+              newDamage: targetData.damage,
+              addedValue: change.value
+            });
+          }
+        }
+      }
+    }
+  }
+}
+class DamageDiceReroll {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the damage dice reroll effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    game.system.log.o("[DAMAGE DICE REROLL] Processing damage dice reroll effect");
+    const { DamageResults, isCritical } = event;
+    if (!DamageResults || !DamageResults.size) {
+      game.system.log.w("[DAMAGE DICE REROLL] No damage results found");
+      return;
+    }
+    for (const effect of this.actor.effects) {
+      if (effect.disabled || effect.isSuppressed) continue;
+      fromUuidSync(effect.origin);
+      for (const change of effect.changes) {
+        if (change.key === "DamageDiceReroll" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+          for (const [targetId, targetData] of DamageResults) {
+            game.system.log.o("[DAMAGE DICE REROLL] Target data:", {
+              targetId,
+              targetData
+            });
+            if (!targetData.directHit) continue;
+            const [numDice, dieType] = targetData.directHit.split("d").map(Number);
+            if (!numDice || !dieType) continue;
+            const additionalDice = Number(change.value) || 1;
+            const newNumDice = numDice + additionalDice;
+            game.system.log.o("[DAMAGE DICE REROLL] New number of dice:", {
+              newNumDice
+            });
+            const kh = numDice;
+            targetData.directHit = `${newNumDice}d${dieType}kh${kh}`;
+            targetData.directHitFormula = targetData.directHit;
+            const parts = [];
+            parts.push(`1D${dieType}`);
+            if (isCritical) {
+              parts.push("CRITICAL");
+            }
+            parts.push(effect.name.toUpperCase());
+            targetData.directHitDisplayFormula = `(${parts.join(" + ")})`;
+          }
+        }
+      }
+    }
+  }
+}
+class TransferEffectToAllies {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Delete transferred effects from allies
+   * @param {object} event - The event containing effect data
+   * @return {Promise<void>} Returns a promise that resolves when the effects have been deleted
+   */
+  async delete(event) {
+    const { effect } = event;
+    const transferredEffects = game.actors.reduce((acc, actor) => {
+      return acc.concat(actor.effects.filter(
+        (e) => e.getFlag(SYSTEM_ID, "transferredBy.actor.uuid") === this.actor.uuid && e.name === effect.name
+      ));
+    }, []);
+    game.system.log.p("[EFFECT] Removing transferredEffects", transferredEffects);
+    game.system.log.p("[EFFECT] Removing transferred effects for", effect.name);
+    for (const transferredEffect of transferredEffects) {
+      await transferredEffect.delete();
+    }
+  }
+  /**
+   * Process the transfer effect to allies
+   * @param {object} event - The event containing effect data
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    game.system.log.p("[TRANSFER] Starting effect transfer process", event);
+    const { effect } = event;
+    game.system.log.p("[TRANSFER] Source actor:", this.actor.name);
+    game.system.log.p("[TRANSFER] Effect:", effect);
+    const stackingBehavior = effect.getFlag(SYSTEM_ID, "stackable") || "differentSource";
+    for (const token of this.actor.allyTokens) {
+      game.system.log.p("[TRANSFER] Processing token:", token.name);
+      if (!token.actor) {
+        game.system.log.p("[TRANSFER] No actor for token, skipping");
+        continue;
+      }
+      if (stackingBehavior === "replaces") {
+        const existingEffects = token.actor.effects.filter((e) => e.name === effect.name);
+        game.system.log.p("[TRANSFER] Found existing effects to replace:", existingEffects.length);
+        for (const existingEffect of existingEffects) {
+          game.system.log.p("[TRANSFER] Removing existing effect for replacement:", existingEffect.name);
+          await existingEffect.delete();
+        }
+      }
+      const effectData = {
+        name: effect.name,
+        img: effect.img,
+        changes: foundry.utils.deepClone(effect.changes),
+        flags: foundry.utils.deepClone(effect.flags),
+        origin: effect.origin,
+        disabled: false
+      };
+      game.system.log.p("[TRANSFER] Original effect flags:", effect.flags);
+      game.system.log.p("[TRANSFER] Cloned effect flags:", effectData.flags);
+      effectData.flags[SYSTEM_ID] = {
+        ...effectData.flags[SYSTEM_ID],
+        transferredBy: {
+          actor: {
+            uuid: this.actor.uuid,
+            name: this.actor.name,
+            img: this.actor.img
+          }
+        }
+      };
+      game.system.log.p("[TRANSFER] Final effect flags after origin update:", effectData.flags);
+      try {
+        await token.actor.createEmbeddedDocuments("ActiveEffect", [effectData]);
+        game.system.log.p("[TRANSFER] Successfully created effect on", token.name, effectData, token.actor);
+      } catch (error) {
+        game.system.log.e("[TRANSFER] Error creating effect:", error);
+      }
+    }
+  }
+}
+class EnableCombatTurnSlot {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the effect
+   * @param {object} event - The event object containing actor, change, and effect
+   * @return {Promise<void>} Returns a promise that resolves when the effect has been processed
+   */
+  async process(event) {
+    const { actor, change } = event;
+    const { value } = change;
+    const current = actor.system.actionState.available;
+    if (!Array.isArray(current)) {
+      return;
+    }
+    if (!current.includes(value)) {
+      const updated = [...current, value];
+      actor.system.actionState.available = updated;
+      await actor.update({
+        "system.actionState.available": updated
+      });
+    }
+  }
+}
+class DamageOverTime {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the damage over time effect
+   * @param {object} event - The event containing damage results
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    const { change, effect, isMovingForward = true } = event;
+    const currentHP = this.actor.system.points.HP.val;
+    const dotDamage = (parseInt(change.value) || 0) * (isMovingForward ? 1 : -1);
+    if (dotDamage === 0) return;
+    const newHP = Math.max(0, currentHP - dotDamage);
+    game.system.log.o("[DOT] Applying damage:", {
+      actor: this.actor.name,
+      damage: dotDamage,
+      newHP
+    });
+    await this.actor.update({ "system.points.HP.val": newHP });
+    if (isMovingForward && this.actor.system.points.HP.val === 0 && !this.actor.statuses.has("ko")) {
+      await this.actor.toggleStatusEffect("ko");
+    }
+    await ChatMessage.create({
+      user: game.user.id,
+      speaker: ChatMessage.getSpeaker({ actor: this.actor }),
+      flags: {
+        [SYSTEM_ID]: {
+          data: {
+            chatTemplate: "RollChat",
+            actor: {
+              _id: this.actor.id,
+              name: this.actor.name,
+              img: this.actor.img
+            },
+            item: {
+              name: effect.name,
+              img: effect.img || effect.icon,
+              // Support both v11 and v12
+              type: "effect",
+              system: {
+                description: `${this.actor.name} ${isMovingForward ? "takes" : "recovers"} ${Math.abs(dotDamage)} damage ${isMovingForward ? "from" : "due to reversing"} ${effect.name}`,
+                formula: dotDamage.toString()
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  /**
+   * Handle DOT effects during combat updates
+   * @param {Combat} combat - The combat being updated
+   * @param {object} changed - The changes made to the combat
+   * @param {object} options - Update options
+   */
+  async updateCombat(combat, changed, options) {
+    if (!("turn" in changed || "round" in changed) || changed.turn === null) {
+      game.system.log.o("[DOT] Skipping - no turn/round change:", { changed });
+      return;
+    }
+    const previousCombatant = combat.turns[combat.previous?.turn];
+    if (!previousCombatant || previousCombatant.actor.id !== this.actor.id) {
+      game.system.log.o("[DOT] Skipping - not previous combatant:", {
+        actor: this.actor.name,
+        previousCombatant: previousCombatant?.actor?.name,
+        previousTurn: combat.previous?.turn,
+        currentTurn: combat.turn
+      });
+      return;
+    }
+    const isMovingForward = options.direction === 1;
+    const nextTurn = combat.previous?.turn + 1;
+    const isLastTurn = nextTurn === combat.turns.length;
+    const nextCombatant = isLastTurn ? combat.turns[0] : combat.turns[nextTurn];
+    game.system.log.o("[DOT] Checking phase:", {
+      actor: this.actor.name,
+      direction: isMovingForward ? "forward" : "backward",
+      previousType: previousCombatant?.actor?.type,
+      nextType: nextCombatant?.actor?.type,
+      nextTurn,
+      totalTurns: combat.turns.length,
+      isLastTurn,
+      isWrapping: isLastTurn
+    });
+    const lastPC = [...combat.turns].reverse().find((t) => t.actor?.type === "PC");
+    const lastNPC = [...combat.turns].reverse().find((t) => t.actor?.type === "NPC");
+    const isLastOfType = this.actor.type === "PC" && lastPC?.actor?.id === this.actor.id || this.actor.type === "NPC" && lastNPC?.actor?.id === this.actor.id;
+    const nextType = nextCombatant?.actor?.type;
+    const isPhaseTransition = this.actor.type === "PC" && nextType === "NPC" || this.actor.type === "NPC" && nextType === "PC" || isLastTurn && isLastOfType;
+    game.system.log.o("[DOT] Phase check:", {
+      actor: this.actor.name,
+      actorType: this.actor.type,
+      nextType,
+      isPhaseTransition,
+      isLastOfType,
+      isLastTurn
+    });
+    if (!isPhaseTransition) {
+      game.system.log.o("[DOT] Skipping - not a phase transition:", {
+        actor: this.actor.name,
+        direction: isMovingForward ? "forward" : "backward",
+        actorType: this.actor.type,
+        nextType,
+        isLastOfType
+      });
+      return;
+    }
+    const relevantEffects = this.actor.effects.filter(
+      (e) => !e.disabled && e.changes.some((c) => c.key === "DamageOverTime" && c.mode === ACTIVE_EFFECT_MODES.CUSTOM)
+    );
+    if (relevantEffects.length === 0) {
+      game.system.log.o("[DOT] Skipping - no relevant effects:", {
+        actor: this.actor.name,
+        effectCount: this.actor.effects.size
+      });
+      return;
+    }
+    game.system.log.o("[DOT] Processing combat update:", {
+      actor: this.actor.name,
+      direction: isMovingForward ? "forward" : "backward",
+      phase: {
+        currentType: this.actor.type,
+        nextType
+      }
+    });
+    for (const effect of relevantEffects) {
+      for (const change of effect.changes) {
+        if (change.key === "DamageOverTime" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+          await Hooks.callAll("FFXIV.DamageOverTime", {
+            actor: this.actor,
+            change,
+            effect,
+            isMovingForward
+          });
+        }
+      }
+    }
+  }
+}
+let ProcTrigger$1 = class ProcTrigger2 {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the proc trigger effect
+   * @param {object} event - The event containing item and roll data
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+    game.system.log.o("[PROC] Starting proc trigger process:", event);
+    const { item, roll } = event;
+    if (!item.system.procs?.list?.length) {
+      game.system.log.o("[PROC] No procs in list, returning");
+      return;
+    }
+    let d20Result;
+    if (item.system.hasCR && roll) {
+      const d20Term = roll.terms[0];
+      d20Result = d20Term.modifiers.includes("kh1") ? Math.max(...d20Term.results.map((r) => r.result)) : d20Term.results[0].result;
+      game.system.log.o("[PROC] Using existing roll d20 result:", d20Result);
+    } else {
+      const procRoll = await new Roll("1d20").evaluate();
+      d20Result = procRoll.terms[0].results[0].result;
+      game.system.log.o("[PROC] Made new roll d20 result:", d20Result);
+    }
+    if (!item.system.procTrigger || d20Result < item.system.procTrigger) {
+      game.system.log.o("[PROC] Roll did not meet proc trigger threshold:", {
+        procTrigger: item.system.procTrigger,
+        d20Result
+      });
+      return;
+    }
+    game.system.log.o("[PROC] Processing proc effects");
+    for (const procRef of item.system.procs.list) {
+      game.system.log.o("[PROC] Processing proc ref:", procRef);
+      const procItem = await fromUuid(procRef.uuid);
+      if (!procItem) {
+        game.system.log.o("[PROC] Could not find proc item:", procRef.uuid);
+        continue;
+      }
+      game.system.log.o("[PROC] Found proc item:", procItem);
+      game.system.log.o("[PROC] Adding proc effect to actor:", procItem.name);
+      const addedEffects = await this.actor.addLinkedEffects(procItem);
+      game.system.log.o("[PROC] Added effects:", addedEffects);
+      await ChatMessage.create({
+        user: game.user.id,
+        speaker: game.settings.get(SYSTEM_ID, "chatMessageSenderIsActorOwner") ? ChatMessage.getSpeaker({ actor: this.actor }) : null,
+        flags: {
+          [SYSTEM_ID]: {
+            data: {
+              chatTemplate: "RollChat",
+              actor: {
+                _id: this.actor._id,
+                name: this.actor.name,
+                img: this.actor.img
+              },
+              item: {
+                _id: procItem._id,
+                uuid: procItem.uuid,
+                name: procItem.name,
+                img: procItem.img,
+                type: procItem.type,
+                system: procItem.system
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+};
+class ProcTrigger {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Process the proc trigger effect
+   * @param {object} event - The event containing item and roll data
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async process(event) {
+  }
+}
+class DurationManager {
+  /**
+   * @param {Actor} actor - The actor this effect is applied to
+   */
+  constructor(actor) {
+    this.actor = actor;
+  }
+  /**
+   * Get duration rules for an effect from its origin item
+   * @param {ActiveEffect} effect - The effect to get duration rules for
+   * @return {Promise<Array>} The duration rules array
+   */
+  async getDurationRules(effect) {
+    const originItem = await fromUuid(effect.origin);
+    console.log("[FFXIVA] | [DURATION MANAGER] Getting duration rules:", {
+      effectName: effect.name,
+      originUuid: effect.origin,
+      originItem,
+      originDurations: originItem?.system?.durations,
+      effectDurations: effect.system?.durations
+    });
+    return originItem?.system?.durations || effect.system?.durations || [];
+  }
+  /**
+   * Process duration updates when combat updates
+   * @param {Combat} combat - The combat instance
+   * @param {object} changed - What changed in the combat
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async updateCombat(combat, changed) {
+    if (!("turn" in changed || "round" in changed)) return;
+    game.system.log.o("[DURATION MANAGER] updateCombat called:", {
+      combat,
+      changed,
+      actorName: this.actor?.name
+    });
+    const effects2 = this.actor.effects.filter((e) => !e.disabled);
+    for (const effect of effects2) {
+      const durations = await this.getDurationRules(effect);
+      if (!durations?.length) continue;
+      let shouldDelete = false;
+      for (const duration of durations) {
+        const durationType = duration.type;
+        const durationUnits = duration.units;
+        const currentRound = combat.round;
+        const currentTurn = combat.turn;
+        const startRound = effect.duration.startRound;
+        const startTurn = effect.duration.startTurn;
+        game.system.log.o("[DURATION MANAGER] Processing duration:", {
+          name: effect.name,
+          durationType,
+          durationUnits,
+          currentRound,
+          currentTurn,
+          startRound,
+          startTurn
+        });
+        switch (durationType) {
+          case "endOfThis":
+            if (durationUnits === "rounds" && currentRound > startRound || durationUnits === "turns" && (currentRound > startRound || currentTurn > startTurn)) {
+              shouldDelete = true;
+            }
+            break;
+          case "endOfNext":
+            if (durationUnits === "rounds" && currentRound > startRound + 1 || durationUnits === "turns" && currentRound > startRound && currentTurn > startTurn) {
+              shouldDelete = true;
+            }
+            break;
+          case "startOfNext":
+            if (durationUnits === "rounds" && currentRound > startRound || durationUnits === "turns" && (currentRound > startRound || currentTurn > startTurn)) {
+              shouldDelete = true;
+            }
+            break;
+        }
+        if (shouldDelete) break;
+      }
+      if (shouldDelete) {
+        game.system.log.o("[DURATION MANAGER] Deleting effect:", {
+          name: effect.name,
+          origin: effect.origin
+        });
+        await effect.delete();
+      }
+    }
+  }
+  /**
+   * Process duration updates when damage is applied
+   * @param {object} event - The damage event
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async onDamage(event) {
+    game.system.log.o("[DURATION MANAGER] onDamage called:", {
+      event,
+      actorName: this.actor?.name
+    });
+    const effects2 = this.actor.effects.filter((e) => !e.disabled);
+    for (const effect of effects2) {
+      const durations = await this.getDurationRules(effect);
+      if (!durations?.some((d) => d.type === "untilDamage")) continue;
+      game.system.log.o("[DURATION MANAGER] Deleting effect:", {
+        name: effect.name,
+        origin: effect.origin
+      });
+      await effect.delete();
+    }
+  }
+  /**
+   * Process duration updates when an ability is used
+   * @param {object} event - The ability use event containing item and isNewAbilityUse
+   * @return {Promise<void>} A promise that resolves when processing is complete
+   */
+  async onAbilityUse(event) {
+    console.log("[FFXIVA] | [DURATION MANAGER] Full effect details:", {
+      effects: this.actor.effects.map((e) => ({
+        name: e.name,
+        durations: e.system?.durations,
+        origin: e.origin,
+        disabled: e.disabled,
+        uuid: e.uuid,
+        duration: e.duration,
+        flags: e.flags,
+        changes: e.changes
+      }))
+    });
+    console.log("[FFXIVA] | [DURATION MANAGER] onAbilityUse called:", {
+      itemName: event.item?.name,
+      itemType: event.item?.type,
+      isNewAbilityUse: event.isNewAbilityUse,
+      itemSystem: event.item?.system,
+      actorName: this.actor?.name,
+      itemUuid: event.item?.uuid,
+      actorEffects: this.actor.effects.map((e) => ({
+        name: e.name,
+        durations: e.system?.durations,
+        disabled: e.disabled,
+        origin: e.origin,
+        requiresAbility: e.duration?.requiresAbility,
+        type: e.duration?.type,
+        flags: e.flags
+      }))
+    });
+    if (!event.isNewAbilityUse) {
+      game.system.log.o("[DURATION MANAGER] Skipping nextAbility check - not a new ability use");
+      return;
+    }
+    const effects2 = this.actor.effects.filter((e) => !e.disabled);
+    for (const effect of effects2) {
+      const durations = await this.getDurationRules(effect);
+      if (!durations?.some((d) => d.qualifier === "nextAbility")) continue;
+      const effectOrigin = await fromUuid(effect.origin);
+      if (effectOrigin?.uuid === event.item.uuid || effectOrigin?.name === event.item?.name) {
+        game.system.log.o("[DURATION MANAGER] Skipping effect deletion because ability is the source");
+        continue;
+      }
+      game.system.log.o("[DURATION MANAGER] Deleting effect:", {
+        name: effect.name,
+        systemDuration: effect.system?.durations,
+        coreDuration: effect.duration,
+        origin: effect.origin,
+        effectUuid: effect.uuid,
+        abilityUuid: event.item?.uuid,
+        effectOriginUuid: effectOrigin?.uuid
+      });
+      await effect.delete();
+    }
+  }
+}
+const effects = {
+  PrimaryBaseDamageBuff,
+  AbilityBaseDamageBuff,
+  DamageDiceReroll,
+  TransferEffectToAllies,
+  EnableCombatTurnSlot,
+  DamageOverTime,
+  ProcTrigger: ProcTrigger$1,
+  LucidDreaming: ProcTrigger,
+  DurationManager
+};
+const BaseFFActor = eval("CONFIG?.Actor?.documentClass") || class {
+};
+class FFXIVActor extends BaseFFActor {
+  /**
+   * Creates a new FFXIV actor
+   * @param {object} data - The actor data
+   * @param {object} context - The initialization context
+   */
+  constructor(data = {}, context) {
+    super(data, context);
+  }
+  /**
+   * Gets effects that enable combat turn slots
+   * @return {Array<ActiveEffect>} effects on the actor that have a change with key = EnableCombatTurnSlot mode = custom
+   */
+  get enablerEffects() {
+    return this.effects.filter(
+      (effect) => effect.changes.some(
+        (change) => change.key === "EnableCombatTurnSlot" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM
+      )
+    );
+  }
+  /**
+   * Checks if item tags match enabler effect tags
+   * @param {Item} item - The item to check
+   * @return {boolean} Whether tags match
+   */
+  itemTagsMatchEnablerEffectTags(item) {
+    const itemTags = item.system.tags;
+    for (const effect of this.effects) {
+      if (effect.system.tags?.some((tag) => itemTags.includes(tag))) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * Add effects from an item to this actor
+   * @param {Item} item - The item to add effects from
+   * @return {Array} Array of effect UUIDs that were enabled
+   */
+  async addLinkedEffects(item) {
+    if (!item.hasEffects) {
+      game.system.log.p("[ADD LINKED EFFECTS] Item has no effects:", item);
+      return [];
+    }
+    const effectsToCreate = [];
+    for (const effect of item.effects) {
+      game.system.log.p("[ADD LINKED EFFECTS] Processing effect:", {
+        name: effect.name,
+        system: effect.system,
+        flags: effect.flags,
+        origin: effect.origin
+      });
+      game.system.log.p("[ADD LINKED EFFECTS] Effect flags detail:", {
+        rawFlags: effect.flags,
+        systemFlags: effect.flags?.[SYSTEM_ID],
+        stackableFlag: effect.getFlag(SYSTEM_ID, "stackable"),
+        overlayFlag: effect.getFlag(SYSTEM_ID, "overlay")
+      });
+      const sourceActors = this.getEffectSources(effect);
+      const stackingBehavior = effect.getFlag(SYSTEM_ID, "stackable") || "differentSource";
+      switch (stackingBehavior) {
+        case "replaces":
+          const existingEffects = this.effects.filter((e) => e.name === effect.name);
+          game.system.log.p("[ADD LINKED EFFECTS] Found existing effects to replace:", existingEffects.length);
+          for (const existingEffect of existingEffects) {
+            game.system.log.p("[ADD LINKED EFFECTS] Removing existing effect for replacement:", existingEffect.name);
+            await existingEffect.delete();
+          }
+          break;
+        case "anySource":
+          break;
+        case "differentSource":
+        default:
+          if (sourceActors.has(this.uuid)) {
+            game.system.log.p("[ADD LINKED EFFECTS] Effect already exists from this source:", {
+              name: effect.name,
+              source: this.uuid,
+              existingSources: Array.from(sourceActors)
+            });
+            continue;
+          }
+      }
+      const effectData = {
+        ...effect.toObject(),
+        disabled: false,
+        // Maintain the original effect's origin
+        origin: effect.origin || item.uuid,
+        flags: {
+          ...effect.flags,
+          [SYSTEM_ID]: {
+            ...effect.flags?.[SYSTEM_ID],
+            // Preserve existing system flags
+            overlay: effect.getFlag(SYSTEM_ID, "overlay"),
+            stackable: effect.getFlag(SYSTEM_ID, "stackable"),
+            // Track who enabled this effect
+            transferredBy: {
+              actor: {
+                uuid: this.uuid,
+                name: this.name,
+                img: this.img
+              },
+              item: {
+                uuid: item.uuid,
+                name: item.name
+              }
+            },
+            // Maintain effect origin info needed by CombatSlotManager
+            originEffect: {
+              uuid: effect.uuid
+            }
+          }
+        }
+      };
+      game.system.log.p("[ADD LINKED EFFECTS] Prepared effect data for creation:", effectData);
+      effectsToCreate.push(effectData);
+    }
+    if (!effectsToCreate.length) {
+      game.system.log.p("[ADD LINKED EFFECTS] No effects to add");
+      return [];
+    }
+    game.system.log.p("[ADD LINKED EFFECTS] Creating effects on actor:", this.name, effectsToCreate);
+    const created = await this.createEmbeddedDocuments("ActiveEffect", effectsToCreate);
+    for (const effect of created) {
+      if (!effect.isSuppressed) {
+        await this._processEffectHooks(effect);
+      }
+    }
+    game.system.log.p("[ADD LINKED EFFECTS] Created effects:", created.map((e) => ({
+      name: e.name,
+      system: e.system,
+      flags: e.flags,
+      uuid: e.uuid
+    })));
+    return created.map((e) => e.uuid);
+  }
+  /**
+   * Process effect hooks for an effect
+   * @param {ActiveEffect} effect - The effect to process hooks for
+   * @return {Promise<void>} Returns a promise that resolves when hooks are processed
+   */
+  async _processEffectHooks(effect) {
+    game.system.log.g("[PROCESS EFFECT HOOKS] Processing effect:", effect);
+    game.system.log.g("[PROCESS EFFECT HOOKS] effectProcessors:", effects);
+    for (const change of effect.changes) {
+      const matchingMode = activeEffectModes.find((e) => e.value === change.mode);
+      if (matchingMode) {
+        if (!effects[change.key]) {
+          ui.notifications.error(`No effect processor found for key: ${change.key}`);
+          return;
+        }
+        game.system.log.g("[PROCESS EFFECT HOOKS] Processing effect:", change.key);
+        await Hooks.callAll(`FFXIV.${change.key}`, { actor: this, change, effect });
+      } else {
+        game.system.log.w("[PROCESS EFFECT HOOKS] No matching mode found for change:", change);
+      }
+    }
+  }
+  /**
+   * Handles plugin overrides for status effect toggling
+   */
+  async handlePluginOverrides(movementSacrificingTraits) {
+    if (!this.statuses.has("focus") && !this.system.hasMoved && !this.hasSpecificDuplicate(this.system.actionState.available, "secondary")) {
+      for (const trait of movementSacrificingTraits) {
+        const enablerEffects = trait.effects.filter(
+          (e) => e.changes.some((c) => c.key === "EnableCombatTurnSlot" && c.mode === ACTIVE_EFFECT_MODES.CUSTOM)
+        );
+        for (const effect of enablerEffects) {
+          for (const change of effect.changes) {
+            if (change.key === "EnableCombatTurnSlot" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+              const value = change.value;
+              if (!this.system.actionState.available.includes(value)) {
+                const updated = [...this.system.actionState.available, value];
+                await this.update({
+                  "system.actionState.available": updated
+                });
+              }
+            }
+          }
+        }
+      }
+      await this.update({ system: { actionState: { available: [...this.system.actionState.available, "secondary"] } } });
+    }
+    if (this.statuses.has("focus") && !this.system.hasMoved && this.hasSpecificDuplicate(this.system.actionState.available, "secondary")) {
+      for (const trait of movementSacrificingTraits) {
+        const enablerEffects = trait.effects.filter(
+          (e) => e.changes.some((c) => c.key === "EnableCombatTurnSlot" && c.mode === ACTIVE_EFFECT_MODES.CUSTOM)
+        );
+        for (const effect of enablerEffects) {
+          for (const change of effect.changes) {
+            if (change.key === "EnableCombatTurnSlot" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
+              const value = change.value;
+              if (this.system.actionState.available.includes(value)) {
+                const updated = this.system.actionState.available.filter((slot) => slot !== value);
+                await this.update({
+                  "system.actionState.available": updated
+                });
+              }
+            }
+          }
+        }
+      }
+      await this.update({ system: { actionState: { available: this.removeFirstDuplicate(this.system.actionState.available, "secondary") } } });
+    }
+  }
+}
 class RollGuards extends CONFIG.FFXIV.RollGuards {
   /** @type {Actor} The actor associated with these roll guards */
   actor;
@@ -107,6 +978,7 @@ class RollGuards extends CONFIG.FFXIV.RollGuards {
    * @param {Actor} actor - The actor to check guards for
    */
   constructor(actor) {
+    super();
     this.actor = actor;
   }
   /**
@@ -317,7 +1189,7 @@ class RollGuards extends CONFIG.FFXIV.RollGuards {
         }
       }
     }
-    const msg = localize$2("Types.Item.Types.action.SlotNotAvailable").replace("%s", actionType);
+    const msg = localize$1("Types.Item.Types.action.SlotNotAvailable").replace("%s", actionType);
     ui.notifications.warn(msg);
     return false;
   }
@@ -666,11 +1538,12 @@ class AbilitiesLimiter {
     return !!(system.baseEffectDamage || system.directHitType === "damage" && system.directHitDamage);
   }
 }
-class EffectManager {
+class EffectManager extends CONFIG.FFXIV.EffectManager {
   /**
    * @param {Actor} actor - The actor this handler is for
    */
   constructor(actor) {
+    super();
     this.actor = actor;
     this.DefaultChatHandler = new DefaultChatHandler(actor);
   }
@@ -2023,6 +2896,28 @@ function get_current_component() {
 function onMount(fn) {
   get_current_component().$$.on_mount.push(fn);
 }
+function onDestroy(fn) {
+  get_current_component().$$.on_destroy.push(fn);
+}
+function createEventDispatcher() {
+  const component = get_current_component();
+  return (type, detail, { cancelable = false } = {}) => {
+    const callbacks = component.$$.callbacks[type];
+    if (callbacks) {
+      const event = custom_event(
+        /** @type {string} */
+        type,
+        detail,
+        { cancelable }
+      );
+      callbacks.slice().forEach((fn) => {
+        fn.call(component, event);
+      });
+      return !event.defaultPrevented;
+    }
+    return true;
+  };
+}
 function setContext(key, context) {
   get_current_component().$$.context.set(key, context);
   return context;
@@ -2291,6 +3186,75 @@ function create_out_transition(node, fn, params) {
 function ensure_array_like(array_like_or_iterator) {
   return array_like_or_iterator?.length !== void 0 ? array_like_or_iterator : Array.from(array_like_or_iterator);
 }
+function destroy_block(block, lookup) {
+  block.d(1);
+  lookup.delete(block.key);
+}
+function update_keyed_each(old_blocks, dirty, get_key, dynamic, ctx, list, lookup, node, destroy, create_each_block2, next, get_context) {
+  let o = old_blocks.length;
+  let n = list.length;
+  let i = o;
+  const old_indexes = {};
+  while (i--) old_indexes[old_blocks[i].key] = i;
+  const new_blocks = [];
+  const new_lookup = /* @__PURE__ */ new Map();
+  const deltas = /* @__PURE__ */ new Map();
+  const updates = [];
+  i = n;
+  while (i--) {
+    const child_ctx = get_context(ctx, list, i);
+    const key = get_key(child_ctx);
+    let block = lookup.get(key);
+    if (!block) {
+      block = create_each_block2(key, child_ctx);
+      block.c();
+    } else {
+      updates.push(() => block.p(child_ctx, dirty));
+    }
+    new_lookup.set(key, new_blocks[i] = block);
+    if (key in old_indexes) deltas.set(key, Math.abs(i - old_indexes[key]));
+  }
+  const will_move = /* @__PURE__ */ new Set();
+  const did_move = /* @__PURE__ */ new Set();
+  function insert2(block) {
+    transition_in(block, 1);
+    block.m(node, next);
+    lookup.set(block.key, block);
+    next = block.first;
+    n--;
+  }
+  while (o && n) {
+    const new_block = new_blocks[n - 1];
+    const old_block = old_blocks[o - 1];
+    const new_key = new_block.key;
+    const old_key = old_block.key;
+    if (new_block === old_block) {
+      next = new_block.first;
+      o--;
+      n--;
+    } else if (!new_lookup.has(old_key)) {
+      destroy(old_block, lookup);
+      o--;
+    } else if (!lookup.has(new_key) || will_move.has(new_key)) {
+      insert2(new_block);
+    } else if (did_move.has(old_key)) {
+      o--;
+    } else if (deltas.get(new_key) > deltas.get(old_key)) {
+      did_move.add(new_key);
+      insert2(new_block);
+    } else {
+      will_move.add(old_key);
+      o--;
+    }
+  }
+  while (o--) {
+    const old_block = old_blocks[o];
+    if (!new_lookup.has(old_block.key)) destroy(old_block, lookup);
+  }
+  while (n) insert2(new_blocks[n - 1]);
+  run_all(updates);
+  return new_blocks;
+}
 function get_spread_update(levels, updates) {
   const update2 = {};
   const to_null_out = {};
@@ -2479,7 +3443,7 @@ function readable(value, start) {
 function writable(value, start = noop) {
   let stop;
   const subscribers = /* @__PURE__ */ new Set();
-  function set(new_value) {
+  function set2(new_value) {
     if (safe_not_equal(value, new_value)) {
       value = new_value;
       if (stop) {
@@ -2498,13 +3462,13 @@ function writable(value, start = noop) {
     }
   }
   function update2(fn) {
-    set(fn(value));
+    set2(fn(value));
   }
   function subscribe2(run2, invalidate = noop) {
     const subscriber = [run2, invalidate];
     subscribers.add(subscriber);
     if (subscribers.size === 1) {
-      stop = start(set, update2) || noop;
+      stop = start(set2, update2) || noop;
     }
     run2(value);
     return () => {
@@ -2515,7 +3479,7 @@ function writable(value, start = noop) {
       }
     };
   }
-  return { set, update: update2, subscribe: subscribe2 };
+  return { set: set2, update: update2, subscribe: subscribe2 };
 }
 function derived(stores, fn, initial_value) {
   const single = !Array.isArray(stores);
@@ -2524,7 +3488,7 @@ function derived(stores, fn, initial_value) {
     throw new Error("derived() expects stores as input, got a falsy value");
   }
   const auto = fn.length < 2;
-  return readable(initial_value, (set, update2) => {
+  return readable(initial_value, (set2, update2) => {
     let started = false;
     const values = [];
     let pending = 0;
@@ -2534,9 +3498,9 @@ function derived(stores, fn, initial_value) {
         return;
       }
       cleanup();
-      const result = fn(single ? values[0] : values, set, update2);
+      const result = fn(single ? values[0] : values, set2, update2);
       if (auto) {
-        set(result);
+        set2(result);
       } else {
         cleanup = is_function(result) ? result : noop;
       }
@@ -2574,656 +3538,6 @@ const addTokenMovement = (tokenId, distance) => {
 };
 const resetTokenMovement = (tokenId) => {
   tokenMovement.set(tokenId, 0);
-};
-class PrimaryBaseDamageBuff {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Process the primary base damage buff effect
-   * @param {object} event - The event containing damage results
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async process(event) {
-    const effects2 = this.actor.effects.filter((e) => !e.disabled);
-    for (const effect of effects2) {
-      const origin = await fromUuid(effect.origin);
-      for (const change of effect.changes) {
-        if (change.key === "PrimaryBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
-          for (const [tokenId, targetData] of event.DamageResults) {
-            targetData.damage;
-            targetData.damage = parseInt(targetData.damage) + parseInt(change.value);
-            targetData.baseDamageFormula += ` + ${origin.name} (${change.value})`;
-          }
-        }
-      }
-    }
-  }
-}
-class AbilityBaseDamageBuff {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Process the primary base damage buff effect
-   * @param {object} event - The event containing damage results
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async process(event) {
-    const { DamageResults } = event;
-    game.system.log.o("[ABILITY DAMAGE BUFF] Processing ability base damage buff effect", {
-      DamageResults,
-      actorEffects: this.actor.effects
-    });
-    for (const effect of this.actor.effects) {
-      const origin = fromUuidSync(effect.origin);
-      game.system.log.o("[ABILITY DAMAGE BUFF] Processing effect:", {
-        effect,
-        origin,
-        changes: effect.changes
-      });
-      for (const change of effect.changes) {
-        game.system.log.o("[ABILITY DAMAGE BUFF] Checking change:", {
-          key: change.key,
-          mode: change.mode,
-          value: change.value,
-          matches: change.key === "AbilityBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM
-        });
-        if (change.key === "AbilityBaseDamageBuff" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
-          for (const [tokenId, targetData] of DamageResults) {
-            const oldDamage = targetData.damage;
-            targetData.damage = parseInt(targetData.damage) + parseInt(change.value);
-            targetData.baseDamageFormula += ` + ${origin.name} (${change.value})`;
-            game.system.log.o("[ABILITY DAMAGE BUFF] Applied damage buff:", {
-              tokenId,
-              oldDamage,
-              newDamage: targetData.damage,
-              addedValue: change.value
-            });
-          }
-        }
-      }
-    }
-  }
-}
-class DamageDiceReroll {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Process the damage dice reroll effect
-   * @param {object} event - The event containing damage results
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async process(event) {
-    game.system.log.o("[DAMAGE DICE REROLL] Processing damage dice reroll effect");
-    const { DamageResults, isCritical } = event;
-    if (!DamageResults || !DamageResults.size) {
-      game.system.log.w("[DAMAGE DICE REROLL] No damage results found");
-      return;
-    }
-    for (const effect of this.actor.effects) {
-      if (effect.disabled || effect.isSuppressed) continue;
-      fromUuidSync(effect.origin);
-      for (const change of effect.changes) {
-        if (change.key === "DamageDiceReroll" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
-          for (const [targetId, targetData] of DamageResults) {
-            game.system.log.o("[DAMAGE DICE REROLL] Target data:", {
-              targetId,
-              targetData
-            });
-            if (!targetData.directHit) continue;
-            const [numDice, dieType] = targetData.directHit.split("d").map(Number);
-            if (!numDice || !dieType) continue;
-            const additionalDice = Number(change.value) || 1;
-            const newNumDice = numDice + additionalDice;
-            game.system.log.o("[DAMAGE DICE REROLL] New number of dice:", {
-              newNumDice
-            });
-            const kh = numDice;
-            targetData.directHit = `${newNumDice}d${dieType}kh${kh}`;
-            targetData.directHitFormula = targetData.directHit;
-            const parts = [];
-            parts.push(`1D${dieType}`);
-            if (isCritical) {
-              parts.push("CRITICAL");
-            }
-            parts.push(effect.name.toUpperCase());
-            targetData.directHitDisplayFormula = `(${parts.join(" + ")})`;
-          }
-        }
-      }
-    }
-  }
-}
-class TransferEffectToAllies {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Delete transferred effects from allies
-   * @param {object} event - The event containing effect data
-   * @return {Promise<void>} Returns a promise that resolves when the effects have been deleted
-   */
-  async delete(event) {
-    const { effect } = event;
-    const transferredEffects = game.actors.reduce((acc, actor) => {
-      return acc.concat(actor.effects.filter(
-        (e) => e.getFlag(SYSTEM_ID, "transferredBy.actor.uuid") === this.actor.uuid && e.name === effect.name
-      ));
-    }, []);
-    game.system.log.p("[EFFECT] Removing transferredEffects", transferredEffects);
-    game.system.log.p("[EFFECT] Removing transferred effects for", effect.name);
-    for (const transferredEffect of transferredEffects) {
-      await transferredEffect.delete();
-    }
-  }
-  /**
-   * Process the transfer effect to allies
-   * @param {object} event - The event containing effect data
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async process(event) {
-    game.system.log.p("[TRANSFER] Starting effect transfer process", event);
-    const { effect } = event;
-    game.system.log.p("[TRANSFER] Source actor:", this.actor.name);
-    game.system.log.p("[TRANSFER] Effect:", effect);
-    const stackingBehavior = effect.getFlag(SYSTEM_ID, "stackable") || "differentSource";
-    for (const token of this.actor.allyTokens) {
-      game.system.log.p("[TRANSFER] Processing token:", token.name);
-      if (!token.actor) {
-        game.system.log.p("[TRANSFER] No actor for token, skipping");
-        continue;
-      }
-      if (stackingBehavior === "replaces") {
-        const existingEffects = token.actor.effects.filter((e) => e.name === effect.name);
-        game.system.log.p("[TRANSFER] Found existing effects to replace:", existingEffects.length);
-        for (const existingEffect of existingEffects) {
-          game.system.log.p("[TRANSFER] Removing existing effect for replacement:", existingEffect.name);
-          await existingEffect.delete();
-        }
-      }
-      const effectData = {
-        name: effect.name,
-        img: effect.img,
-        changes: foundry.utils.deepClone(effect.changes),
-        flags: foundry.utils.deepClone(effect.flags),
-        origin: effect.origin,
-        disabled: false
-      };
-      game.system.log.p("[TRANSFER] Original effect flags:", effect.flags);
-      game.system.log.p("[TRANSFER] Cloned effect flags:", effectData.flags);
-      effectData.flags[SYSTEM_ID] = {
-        ...effectData.flags[SYSTEM_ID],
-        transferredBy: {
-          actor: {
-            uuid: this.actor.uuid,
-            name: this.actor.name,
-            img: this.actor.img
-          }
-        }
-      };
-      game.system.log.p("[TRANSFER] Final effect flags after origin update:", effectData.flags);
-      try {
-        await token.actor.createEmbeddedDocuments("ActiveEffect", [effectData]);
-        game.system.log.p("[TRANSFER] Successfully created effect on", token.name, effectData, token.actor);
-      } catch (error) {
-        game.system.log.e("[TRANSFER] Error creating effect:", error);
-      }
-    }
-  }
-}
-class EnableCombatTurnSlot {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Process the effect
-   * @param {object} event - The event object containing actor, change, and effect
-   * @return {Promise<void>} Returns a promise that resolves when the effect has been processed
-   */
-  async process(event) {
-    const { actor, change } = event;
-    const { value } = change;
-    const current = actor.system.actionState.available;
-    if (!Array.isArray(current)) {
-      return;
-    }
-    if (!current.includes(value)) {
-      const updated = [...current, value];
-      actor.system.actionState.available = updated;
-      await actor.update({
-        "system.actionState.available": updated
-      });
-    }
-  }
-}
-class DamageOverTime {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Process the damage over time effect
-   * @param {object} event - The event containing damage results
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async process(event) {
-    const { change, effect, isMovingForward = true } = event;
-    const currentHP = this.actor.system.points.HP.val;
-    const dotDamage = (parseInt(change.value) || 0) * (isMovingForward ? 1 : -1);
-    if (dotDamage === 0) return;
-    const newHP = Math.max(0, currentHP - dotDamage);
-    game.system.log.o("[DOT] Applying damage:", {
-      actor: this.actor.name,
-      damage: dotDamage,
-      newHP
-    });
-    await this.actor.update({ "system.points.HP.val": newHP });
-    if (isMovingForward && this.actor.system.points.HP.val === 0 && !this.actor.statuses.has("ko")) {
-      await this.actor.toggleStatusEffect("ko");
-    }
-    await ChatMessage.create({
-      user: game.user.id,
-      speaker: ChatMessage.getSpeaker({ actor: this.actor }),
-      flags: {
-        [SYSTEM_ID]: {
-          data: {
-            chatTemplate: "RollChat",
-            actor: {
-              _id: this.actor.id,
-              name: this.actor.name,
-              img: this.actor.img
-            },
-            item: {
-              name: effect.name,
-              img: effect.img || effect.icon,
-              // Support both v11 and v12
-              type: "effect",
-              system: {
-                description: `${this.actor.name} ${isMovingForward ? "takes" : "recovers"} ${Math.abs(dotDamage)} damage ${isMovingForward ? "from" : "due to reversing"} ${effect.name}`,
-                formula: dotDamage.toString()
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-  /**
-   * Handle DOT effects during combat updates
-   * @param {Combat} combat - The combat being updated
-   * @param {object} changed - The changes made to the combat
-   * @param {object} options - Update options
-   */
-  async updateCombat(combat, changed, options) {
-    if (!("turn" in changed || "round" in changed) || changed.turn === null) {
-      game.system.log.o("[DOT] Skipping - no turn/round change:", { changed });
-      return;
-    }
-    const previousCombatant = combat.turns[combat.previous?.turn];
-    if (!previousCombatant || previousCombatant.actor.id !== this.actor.id) {
-      game.system.log.o("[DOT] Skipping - not previous combatant:", {
-        actor: this.actor.name,
-        previousCombatant: previousCombatant?.actor?.name,
-        previousTurn: combat.previous?.turn,
-        currentTurn: combat.turn
-      });
-      return;
-    }
-    const isMovingForward = options.direction === 1;
-    const nextTurn = combat.previous?.turn + 1;
-    const isLastTurn = nextTurn === combat.turns.length;
-    const nextCombatant = isLastTurn ? combat.turns[0] : combat.turns[nextTurn];
-    game.system.log.o("[DOT] Checking phase:", {
-      actor: this.actor.name,
-      direction: isMovingForward ? "forward" : "backward",
-      previousType: previousCombatant?.actor?.type,
-      nextType: nextCombatant?.actor?.type,
-      nextTurn,
-      totalTurns: combat.turns.length,
-      isLastTurn,
-      isWrapping: isLastTurn
-    });
-    const lastPC = [...combat.turns].reverse().find((t) => t.actor?.type === "PC");
-    const lastNPC = [...combat.turns].reverse().find((t) => t.actor?.type === "NPC");
-    const isLastOfType = this.actor.type === "PC" && lastPC?.actor?.id === this.actor.id || this.actor.type === "NPC" && lastNPC?.actor?.id === this.actor.id;
-    const nextType = nextCombatant?.actor?.type;
-    const isPhaseTransition = this.actor.type === "PC" && nextType === "NPC" || this.actor.type === "NPC" && nextType === "PC" || isLastTurn && isLastOfType;
-    game.system.log.o("[DOT] Phase check:", {
-      actor: this.actor.name,
-      actorType: this.actor.type,
-      nextType,
-      isPhaseTransition,
-      isLastOfType,
-      isLastTurn
-    });
-    if (!isPhaseTransition) {
-      game.system.log.o("[DOT] Skipping - not a phase transition:", {
-        actor: this.actor.name,
-        direction: isMovingForward ? "forward" : "backward",
-        actorType: this.actor.type,
-        nextType,
-        isLastOfType
-      });
-      return;
-    }
-    const relevantEffects = this.actor.effects.filter(
-      (e) => !e.disabled && e.changes.some((c) => c.key === "DamageOverTime" && c.mode === ACTIVE_EFFECT_MODES.CUSTOM)
-    );
-    if (relevantEffects.length === 0) {
-      game.system.log.o("[DOT] Skipping - no relevant effects:", {
-        actor: this.actor.name,
-        effectCount: this.actor.effects.size
-      });
-      return;
-    }
-    game.system.log.o("[DOT] Processing combat update:", {
-      actor: this.actor.name,
-      direction: isMovingForward ? "forward" : "backward",
-      phase: {
-        currentType: this.actor.type,
-        nextType
-      }
-    });
-    for (const effect of relevantEffects) {
-      for (const change of effect.changes) {
-        if (change.key === "DamageOverTime" && change.mode === ACTIVE_EFFECT_MODES.CUSTOM) {
-          await Hooks.callAll("FFXIV.DamageOverTime", {
-            actor: this.actor,
-            change,
-            effect,
-            isMovingForward
-          });
-        }
-      }
-    }
-  }
-}
-let ProcTrigger$1 = class ProcTrigger2 {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Process the proc trigger effect
-   * @param {object} event - The event containing item and roll data
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async process(event) {
-    game.system.log.o("[PROC] Starting proc trigger process:", event);
-    const { item, roll } = event;
-    if (!item.system.procs?.list?.length) {
-      game.system.log.o("[PROC] No procs in list, returning");
-      return;
-    }
-    let d20Result;
-    if (item.system.hasCR && roll) {
-      const d20Term = roll.terms[0];
-      d20Result = d20Term.modifiers.includes("kh1") ? Math.max(...d20Term.results.map((r) => r.result)) : d20Term.results[0].result;
-      game.system.log.o("[PROC] Using existing roll d20 result:", d20Result);
-    } else {
-      const procRoll = await new Roll("1d20").evaluate();
-      d20Result = procRoll.terms[0].results[0].result;
-      game.system.log.o("[PROC] Made new roll d20 result:", d20Result);
-    }
-    if (!item.system.procTrigger || d20Result < item.system.procTrigger) {
-      game.system.log.o("[PROC] Roll did not meet proc trigger threshold:", {
-        procTrigger: item.system.procTrigger,
-        d20Result
-      });
-      return;
-    }
-    game.system.log.o("[PROC] Processing proc effects");
-    for (const procRef of item.system.procs.list) {
-      game.system.log.o("[PROC] Processing proc ref:", procRef);
-      const procItem = await fromUuid(procRef.uuid);
-      if (!procItem) {
-        game.system.log.o("[PROC] Could not find proc item:", procRef.uuid);
-        continue;
-      }
-      game.system.log.o("[PROC] Found proc item:", procItem);
-      game.system.log.o("[PROC] Adding proc effect to actor:", procItem.name);
-      const addedEffects = await this.actor.addLinkedEffects(procItem);
-      game.system.log.o("[PROC] Added effects:", addedEffects);
-      await ChatMessage.create({
-        user: game.user.id,
-        speaker: game.settings.get(SYSTEM_ID, "chatMessageSenderIsActorOwner") ? ChatMessage.getSpeaker({ actor: this.actor }) : null,
-        flags: {
-          [SYSTEM_ID]: {
-            data: {
-              chatTemplate: "RollChat",
-              actor: {
-                _id: this.actor._id,
-                name: this.actor.name,
-                img: this.actor.img
-              },
-              item: {
-                _id: procItem._id,
-                uuid: procItem.uuid,
-                name: procItem.name,
-                img: procItem.img,
-                type: procItem.type,
-                system: procItem.system
-              }
-            }
-          }
-        }
-      });
-    }
-  }
-};
-class ProcTrigger {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Process the proc trigger effect
-   * @param {object} event - The event containing item and roll data
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async process(event) {
-  }
-}
-class DurationManager {
-  /**
-   * @param {Actor} actor - The actor this effect is applied to
-   */
-  constructor(actor) {
-    this.actor = actor;
-  }
-  /**
-   * Get duration rules for an effect from its origin item
-   * @param {ActiveEffect} effect - The effect to get duration rules for
-   * @return {Promise<Array>} The duration rules array
-   */
-  async getDurationRules(effect) {
-    const originItem = await fromUuid(effect.origin);
-    console.log("[FFXIVA] | [DURATION MANAGER] Getting duration rules:", {
-      effectName: effect.name,
-      originUuid: effect.origin,
-      originItem,
-      originDurations: originItem?.system?.durations,
-      effectDurations: effect.system?.durations
-    });
-    return originItem?.system?.durations || effect.system?.durations || [];
-  }
-  /**
-   * Process duration updates when combat updates
-   * @param {Combat} combat - The combat instance
-   * @param {object} changed - What changed in the combat
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async updateCombat(combat, changed) {
-    if (!("turn" in changed || "round" in changed)) return;
-    game.system.log.o("[DURATION MANAGER] updateCombat called:", {
-      combat,
-      changed,
-      actorName: this.actor?.name
-    });
-    const effects2 = this.actor.effects.filter((e) => !e.disabled);
-    for (const effect of effects2) {
-      const durations = await this.getDurationRules(effect);
-      if (!durations?.length) continue;
-      let shouldDelete = false;
-      for (const duration of durations) {
-        const durationType = duration.type;
-        const durationUnits = duration.units;
-        const currentRound = combat.round;
-        const currentTurn = combat.turn;
-        const startRound = effect.duration.startRound;
-        const startTurn = effect.duration.startTurn;
-        game.system.log.o("[DURATION MANAGER] Processing duration:", {
-          name: effect.name,
-          durationType,
-          durationUnits,
-          currentRound,
-          currentTurn,
-          startRound,
-          startTurn
-        });
-        switch (durationType) {
-          case "endOfThis":
-            if (durationUnits === "rounds" && currentRound > startRound || durationUnits === "turns" && (currentRound > startRound || currentTurn > startTurn)) {
-              shouldDelete = true;
-            }
-            break;
-          case "endOfNext":
-            if (durationUnits === "rounds" && currentRound > startRound + 1 || durationUnits === "turns" && currentRound > startRound && currentTurn > startTurn) {
-              shouldDelete = true;
-            }
-            break;
-          case "startOfNext":
-            if (durationUnits === "rounds" && currentRound > startRound || durationUnits === "turns" && (currentRound > startRound || currentTurn > startTurn)) {
-              shouldDelete = true;
-            }
-            break;
-        }
-        if (shouldDelete) break;
-      }
-      if (shouldDelete) {
-        game.system.log.o("[DURATION MANAGER] Deleting effect:", {
-          name: effect.name,
-          origin: effect.origin
-        });
-        await effect.delete();
-      }
-    }
-  }
-  /**
-   * Process duration updates when damage is applied
-   * @param {object} event - The damage event
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async onDamage(event) {
-    game.system.log.o("[DURATION MANAGER] onDamage called:", {
-      event,
-      actorName: this.actor?.name
-    });
-    const effects2 = this.actor.effects.filter((e) => !e.disabled);
-    for (const effect of effects2) {
-      const durations = await this.getDurationRules(effect);
-      if (!durations?.some((d) => d.type === "untilDamage")) continue;
-      game.system.log.o("[DURATION MANAGER] Deleting effect:", {
-        name: effect.name,
-        origin: effect.origin
-      });
-      await effect.delete();
-    }
-  }
-  /**
-   * Process duration updates when an ability is used
-   * @param {object} event - The ability use event containing item and isNewAbilityUse
-   * @return {Promise<void>} A promise that resolves when processing is complete
-   */
-  async onAbilityUse(event) {
-    console.log("[FFXIVA] | [DURATION MANAGER] Full effect details:", {
-      effects: this.actor.effects.map((e) => ({
-        name: e.name,
-        durations: e.system?.durations,
-        origin: e.origin,
-        disabled: e.disabled,
-        uuid: e.uuid,
-        duration: e.duration,
-        flags: e.flags,
-        changes: e.changes
-      }))
-    });
-    console.log("[FFXIVA] | [DURATION MANAGER] onAbilityUse called:", {
-      itemName: event.item?.name,
-      itemType: event.item?.type,
-      isNewAbilityUse: event.isNewAbilityUse,
-      itemSystem: event.item?.system,
-      actorName: this.actor?.name,
-      itemUuid: event.item?.uuid,
-      actorEffects: this.actor.effects.map((e) => ({
-        name: e.name,
-        durations: e.system?.durations,
-        disabled: e.disabled,
-        origin: e.origin,
-        requiresAbility: e.duration?.requiresAbility,
-        type: e.duration?.type,
-        flags: e.flags
-      }))
-    });
-    if (!event.isNewAbilityUse) {
-      game.system.log.o("[DURATION MANAGER] Skipping nextAbility check - not a new ability use");
-      return;
-    }
-    const effects2 = this.actor.effects.filter((e) => !e.disabled);
-    for (const effect of effects2) {
-      const durations = await this.getDurationRules(effect);
-      if (!durations?.some((d) => d.qualifier === "nextAbility")) continue;
-      const effectOrigin = await fromUuid(effect.origin);
-      if (effectOrigin?.uuid === event.item.uuid || effectOrigin?.name === event.item?.name) {
-        game.system.log.o("[DURATION MANAGER] Skipping effect deletion because ability is the source");
-        continue;
-      }
-      game.system.log.o("[DURATION MANAGER] Deleting effect:", {
-        name: effect.name,
-        systemDuration: effect.system?.durations,
-        coreDuration: effect.duration,
-        origin: effect.origin,
-        effectUuid: effect.uuid,
-        abilityUuid: event.item?.uuid,
-        effectOriginUuid: effectOrigin?.uuid
-      });
-      await effect.delete();
-    }
-  }
-}
-const effects = {
-  PrimaryBaseDamageBuff,
-  AbilityBaseDamageBuff,
-  DamageDiceReroll,
-  TransferEffectToAllies,
-  EnableCombatTurnSlot,
-  DamageOverTime,
-  ProcTrigger: ProcTrigger$1,
-  LucidDreaming: ProcTrigger,
-  DurationManager
 };
 function updateCombat() {
   Hooks.on("updateCombat", async (combat, changed, options, userId) => {
@@ -3357,6 +3671,60 @@ if (typeof window !== "undefined")
 function cubicOut(t) {
   const f = t - 1;
   return f * f * f + 1;
+}
+function fade(node, { delay = 0, duration = 400, easing = identity } = {}) {
+  const o = +getComputedStyle(node).opacity;
+  return {
+    delay,
+    duration,
+    easing,
+    css: (t) => `opacity: ${t * o}`
+  };
+}
+function set(obj, key, val) {
+  if (typeof val.value === "object") val.value = klona(val.value);
+  if (!val.enumerable || val.get || val.set || !val.configurable || !val.writable || key === "__proto__") {
+    Object.defineProperty(obj, key, val);
+  } else obj[key] = val.value;
+}
+function klona(x) {
+  if (typeof x !== "object") return x;
+  var i = 0, k, list, tmp, str = Object.prototype.toString.call(x);
+  if (str === "[object Object]") {
+    tmp = Object.create(x.__proto__ || null);
+  } else if (str === "[object Array]") {
+    tmp = Array(x.length);
+  } else if (str === "[object Set]") {
+    tmp = /* @__PURE__ */ new Set();
+    x.forEach(function(val) {
+      tmp.add(klona(val));
+    });
+  } else if (str === "[object Map]") {
+    tmp = /* @__PURE__ */ new Map();
+    x.forEach(function(val, key) {
+      tmp.set(klona(key), klona(val));
+    });
+  } else if (str === "[object Date]") {
+    tmp = /* @__PURE__ */ new Date(+x);
+  } else if (str === "[object RegExp]") {
+    tmp = new RegExp(x.source, x.flags);
+  } else if (str === "[object DataView]") {
+    tmp = new x.constructor(klona(x.buffer));
+  } else if (str === "[object ArrayBuffer]") {
+    tmp = x.slice(0);
+  } else if (str.slice(-6) === "Array]") {
+    tmp = new x.constructor(x);
+  }
+  if (tmp) {
+    for (list = Object.getOwnPropertySymbols(x); i < list.length; i++) {
+      set(tmp, list[i], Object.getOwnPropertyDescriptor(x, list[i]));
+    }
+    for (i = 0, list = Object.getOwnPropertyNames(x); i < list.length; i++) {
+      if (Object.hasOwnProperty.call(tmp, k = list[i]) && tmp[k] === x[k]) continue;
+      set(tmp, k, Object.getOwnPropertyDescriptor(x, k));
+    }
+  }
+  return tmp || x;
 }
 const s_TAG_OBJECT = "[object Object]";
 function deepMerge(target = {}, ...sourceObj) {
@@ -3990,6 +4358,60 @@ class TJSStyleManager {
   }
 }
 const cssVariables = new TJSStyleManager({ docKey: "#__trl-root-styles", version: 1 });
+class Timing {
+  /**
+   * Wraps a callback in a debounced timeout.
+   *
+   * Delay execution of the callback function until the function has not been called for the given delay in milliseconds.
+   *
+   * @param {Function} callback - A function to execute once the debounced threshold has been passed.
+   *
+   * @param {number}   delay - An amount of time in milliseconds to delay.
+   *
+   * @returns {Function} A wrapped function that can be called to debounce execution.
+   */
+  static debounce(callback, delay) {
+    let timeoutId;
+    return function(...args) {
+      globalThis.clearTimeout(timeoutId);
+      timeoutId = globalThis.setTimeout(() => {
+        callback.apply(this, args);
+      }, delay);
+    };
+  }
+  /**
+   * @param {object}   opts - Optional parameters.
+   *
+   * @param {Function} opts.single - Single click callback.
+   *
+   * @param {Function} opts.double - Double click callback.
+   *
+   * @param {number}   [opts.delay=400] - Double click delay.
+   *
+   * @returns {(event: Event) => void} The gated double-click handler.
+   */
+  static doubleClick({ single, double, delay = 400 }) {
+    let clicks = 0;
+    let timeoutId;
+    return (event) => {
+      clicks++;
+      if (clicks === 1) {
+        timeoutId = globalThis.setTimeout(() => {
+          if (typeof single === "function") {
+            single(event);
+          }
+          clicks = 0;
+        }, delay);
+      } else {
+        globalThis.clearTimeout(timeoutId);
+        if (typeof double === "function") {
+          double(event);
+        }
+        clicks = 0;
+      }
+    };
+  }
+}
 function isUpdatableStore(store) {
   if (store === null || store === void 0) {
     return false;
@@ -3998,6 +4420,17 @@ function isUpdatableStore(store) {
     case "function":
     case "object":
       return typeof store.subscribe === "function" && typeof store.update === "function";
+  }
+  return false;
+}
+function isWritableStore(store) {
+  if (store === null || store === void 0) {
+    return false;
+  }
+  switch (typeof store) {
+    case "function":
+    case "object":
+      return typeof store.subscribe === "function" && typeof store.set === "function";
   }
   return false;
 }
@@ -4255,6 +4688,650 @@ class TJSDefaultTransition {
     return this.#options;
   }
 }
+function create_else_block$2(ctx) {
+  let div;
+  let applyStyles_action;
+  let div_intro;
+  let div_outro;
+  let current;
+  let mounted;
+  let dispose;
+  const default_slot_template = (
+    /*#slots*/
+    ctx[20].default
+  );
+  const default_slot = create_slot(
+    default_slot_template,
+    ctx,
+    /*$$scope*/
+    ctx[19],
+    null
+  );
+  return {
+    c() {
+      div = element("div");
+      if (default_slot) default_slot.c();
+      attr(div, "class", "tjs-glass-pane-background svelte-hqedxf");
+      set_style(
+        div,
+        "background",
+        /*background*/
+        ctx[5]
+      );
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      if (default_slot) {
+        default_slot.m(div, null);
+      }
+      ctx[23](div);
+      current = true;
+      if (!mounted) {
+        dispose = action_destroyer(applyStyles_action = applyStyles.call(
+          null,
+          div,
+          /*styles*/
+          ctx[7]
+        ));
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (default_slot) {
+        if (default_slot.p && (!current || dirty & /*$$scope*/
+        524288)) {
+          update_slot_base(
+            default_slot,
+            default_slot_template,
+            ctx,
+            /*$$scope*/
+            ctx[19],
+            !current ? get_all_dirty_from_scope(
+              /*$$scope*/
+              ctx[19]
+            ) : get_slot_changes(
+              default_slot_template,
+              /*$$scope*/
+              ctx[19],
+              dirty,
+              null
+            ),
+            null
+          );
+        }
+      }
+      if (applyStyles_action && is_function(applyStyles_action.update) && dirty & /*styles*/
+      128) applyStyles_action.update.call(
+        null,
+        /*styles*/
+        ctx[7]
+      );
+      if (dirty & /*background*/
+      32) {
+        set_style(
+          div,
+          "background",
+          /*background*/
+          ctx[5]
+        );
+      }
+    },
+    i(local) {
+      if (current) return;
+      transition_in(default_slot, local);
+      add_render_callback(() => {
+        if (!current) return;
+        if (div_outro) div_outro.end(1);
+        div_intro = create_in_transition(
+          div,
+          /*inTransition*/
+          ctx[1],
+          /*inTransitionOptions*/
+          ctx[3]
+        );
+        div_intro.start();
+      });
+      current = true;
+    },
+    o(local) {
+      transition_out(default_slot, local);
+      if (div_intro) div_intro.invalidate();
+      div_outro = create_out_transition(
+        div,
+        /*outTransition*/
+        ctx[2],
+        /*outTransitionOptions*/
+        ctx[4]
+      );
+      current = false;
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+      if (default_slot) default_slot.d(detaching);
+      ctx[23](null);
+      if (detaching && div_outro) div_outro.end();
+      mounted = false;
+      dispose();
+    }
+  };
+}
+function create_if_block$5(ctx) {
+  let div0;
+  let applyStyles_action;
+  let div0_intro;
+  let div0_outro;
+  let t;
+  let div1;
+  let current;
+  let mounted;
+  let dispose;
+  const default_slot_template = (
+    /*#slots*/
+    ctx[20].default
+  );
+  const default_slot = create_slot(
+    default_slot_template,
+    ctx,
+    /*$$scope*/
+    ctx[19],
+    null
+  );
+  return {
+    c() {
+      div0 = element("div");
+      t = space();
+      div1 = element("div");
+      if (default_slot) default_slot.c();
+      attr(div0, "class", "tjs-glass-pane-background svelte-hqedxf");
+      set_style(
+        div0,
+        "background",
+        /*background*/
+        ctx[5]
+      );
+      attr(div1, "class", "tjs-glass-pane-container svelte-hqedxf");
+    },
+    m(target, anchor) {
+      insert(target, div0, anchor);
+      ctx[21](div0);
+      insert(target, t, anchor);
+      insert(target, div1, anchor);
+      if (default_slot) {
+        default_slot.m(div1, null);
+      }
+      ctx[22](div1);
+      current = true;
+      if (!mounted) {
+        dispose = action_destroyer(applyStyles_action = applyStyles.call(
+          null,
+          div0,
+          /*styles*/
+          ctx[7]
+        ));
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (applyStyles_action && is_function(applyStyles_action.update) && dirty & /*styles*/
+      128) applyStyles_action.update.call(
+        null,
+        /*styles*/
+        ctx[7]
+      );
+      if (dirty & /*background*/
+      32) {
+        set_style(
+          div0,
+          "background",
+          /*background*/
+          ctx[5]
+        );
+      }
+      if (default_slot) {
+        if (default_slot.p && (!current || dirty & /*$$scope*/
+        524288)) {
+          update_slot_base(
+            default_slot,
+            default_slot_template,
+            ctx,
+            /*$$scope*/
+            ctx[19],
+            !current ? get_all_dirty_from_scope(
+              /*$$scope*/
+              ctx[19]
+            ) : get_slot_changes(
+              default_slot_template,
+              /*$$scope*/
+              ctx[19],
+              dirty,
+              null
+            ),
+            null
+          );
+        }
+      }
+    },
+    i(local) {
+      if (current) return;
+      add_render_callback(() => {
+        if (!current) return;
+        if (div0_outro) div0_outro.end(1);
+        div0_intro = create_in_transition(
+          div0,
+          /*inTransition*/
+          ctx[1],
+          /*inTransitionOptions*/
+          ctx[3]
+        );
+        div0_intro.start();
+      });
+      transition_in(default_slot, local);
+      current = true;
+    },
+    o(local) {
+      if (div0_intro) div0_intro.invalidate();
+      div0_outro = create_out_transition(
+        div0,
+        /*outTransition*/
+        ctx[2],
+        /*outTransitionOptions*/
+        ctx[4]
+      );
+      transition_out(default_slot, local);
+      current = false;
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div0);
+        detach(t);
+        detach(div1);
+      }
+      ctx[21](null);
+      if (detaching && div0_outro) div0_outro.end();
+      if (default_slot) default_slot.d(detaching);
+      ctx[22](null);
+      mounted = false;
+      dispose();
+    }
+  };
+}
+function create_fragment$8(ctx) {
+  let div;
+  let current_block_type_index;
+  let if_block;
+  let current;
+  let mounted;
+  let dispose;
+  const if_block_creators = [create_if_block$5, create_else_block$2];
+  const if_blocks = [];
+  function select_block_type(ctx2, dirty) {
+    if (
+      /*slotSeparate*/
+      ctx2[0]
+    ) return 0;
+    return 1;
+  }
+  current_block_type_index = select_block_type(ctx);
+  if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
+  return {
+    c() {
+      div = element("div");
+      if_block.c();
+      attr(
+        div,
+        "id",
+        /*id*/
+        ctx[6]
+      );
+      attr(div, "class", "tjs-glass-pane svelte-hqedxf");
+      set_style(
+        div,
+        "z-index",
+        /*zIndex*/
+        ctx[8]
+      );
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      if_blocks[current_block_type_index].m(div, null);
+      ctx[24](div);
+      current = true;
+      if (!mounted) {
+        dispose = [
+          listen(
+            window,
+            "contextmenu",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "dblclick",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "keydown",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "keyup",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "mousedown",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "mousemove",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "mouseup",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "pointerdown",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "pointermove",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "pointerup",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "touchend",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "touchmove",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "touchstart",
+            /*swallow*/
+            ctx[12],
+            true
+          ),
+          listen(
+            window,
+            "wheel",
+            /*swallow*/
+            ctx[12],
+            true
+          )
+        ];
+        mounted = true;
+      }
+    },
+    p(ctx2, [dirty]) {
+      let previous_block_index = current_block_type_index;
+      current_block_type_index = select_block_type(ctx2);
+      if (current_block_type_index === previous_block_index) {
+        if_blocks[current_block_type_index].p(ctx2, dirty);
+      } else {
+        group_outros();
+        transition_out(if_blocks[previous_block_index], 1, 1, () => {
+          if_blocks[previous_block_index] = null;
+        });
+        check_outros();
+        if_block = if_blocks[current_block_type_index];
+        if (!if_block) {
+          if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx2);
+          if_block.c();
+        } else {
+          if_block.p(ctx2, dirty);
+        }
+        transition_in(if_block, 1);
+        if_block.m(div, null);
+      }
+      if (!current || dirty & /*id*/
+      64) {
+        attr(
+          div,
+          "id",
+          /*id*/
+          ctx2[6]
+        );
+      }
+      if (dirty & /*zIndex*/
+      256) {
+        set_style(
+          div,
+          "z-index",
+          /*zIndex*/
+          ctx2[8]
+        );
+      }
+    },
+    i(local) {
+      if (current) return;
+      transition_in(if_block);
+      current = true;
+    },
+    o(local) {
+      transition_out(if_block);
+      current = false;
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+      if_blocks[current_block_type_index].d();
+      ctx[24](null);
+      mounted = false;
+      run_all(dispose);
+    }
+  };
+}
+function instance$8($$self, $$props, $$invalidate) {
+  let { $$slots: slots = {}, $$scope } = $$props;
+  let { background = "#50505080" } = $$props;
+  let { captureInput = true } = $$props;
+  let { closeOnInput = void 0 } = $$props;
+  let { id = void 0 } = $$props;
+  let { slotSeparate = void 0 } = $$props;
+  let { styles = void 0 } = $$props;
+  let { zIndex = Number.MAX_SAFE_INTEGER } = $$props;
+  const dispatch2 = createEventDispatcher();
+  let backgroundEl, containerEl, glassPaneEl;
+  let { transition = void 0 } = $$props;
+  let { inTransition = void 0 } = $$props;
+  let { outTransition = void 0 } = $$props;
+  let { transitionOptions = void 0 } = $$props;
+  let { inTransitionOptions = TJSDefaultTransition.options } = $$props;
+  let { outTransitionOptions = TJSDefaultTransition.options } = $$props;
+  let oldTransition = void 0;
+  let oldTransitionOptions = void 0;
+  function swallow(event) {
+    const targetEl = event.target;
+    if (targetEl !== glassPaneEl && targetEl !== backgroundEl && targetEl !== containerEl && glassPaneEl.contains(targetEl)) {
+      return;
+    }
+    if (captureInput) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+    if (event?.type === "pointerdown" && closeOnInput) {
+      dispatch2("close:glasspane");
+    }
+  }
+  function div0_binding($$value) {
+    binding_callbacks[$$value ? "unshift" : "push"](() => {
+      backgroundEl = $$value;
+      $$invalidate(9, backgroundEl);
+    });
+  }
+  function div1_binding($$value) {
+    binding_callbacks[$$value ? "unshift" : "push"](() => {
+      containerEl = $$value;
+      $$invalidate(10, containerEl);
+    });
+  }
+  function div_binding($$value) {
+    binding_callbacks[$$value ? "unshift" : "push"](() => {
+      backgroundEl = $$value;
+      $$invalidate(9, backgroundEl);
+    });
+  }
+  function div_binding_1($$value) {
+    binding_callbacks[$$value ? "unshift" : "push"](() => {
+      glassPaneEl = $$value;
+      $$invalidate(11, glassPaneEl);
+    });
+  }
+  $$self.$$set = ($$props2) => {
+    if ("background" in $$props2) $$invalidate(5, background = $$props2.background);
+    if ("captureInput" in $$props2) $$invalidate(13, captureInput = $$props2.captureInput);
+    if ("closeOnInput" in $$props2) $$invalidate(14, closeOnInput = $$props2.closeOnInput);
+    if ("id" in $$props2) $$invalidate(6, id = $$props2.id);
+    if ("slotSeparate" in $$props2) $$invalidate(0, slotSeparate = $$props2.slotSeparate);
+    if ("styles" in $$props2) $$invalidate(7, styles = $$props2.styles);
+    if ("zIndex" in $$props2) $$invalidate(8, zIndex = $$props2.zIndex);
+    if ("transition" in $$props2) $$invalidate(15, transition = $$props2.transition);
+    if ("inTransition" in $$props2) $$invalidate(1, inTransition = $$props2.inTransition);
+    if ("outTransition" in $$props2) $$invalidate(2, outTransition = $$props2.outTransition);
+    if ("transitionOptions" in $$props2) $$invalidate(16, transitionOptions = $$props2.transitionOptions);
+    if ("inTransitionOptions" in $$props2) $$invalidate(3, inTransitionOptions = $$props2.inTransitionOptions);
+    if ("outTransitionOptions" in $$props2) $$invalidate(4, outTransitionOptions = $$props2.outTransitionOptions);
+    if ("$$scope" in $$props2) $$invalidate(19, $$scope = $$props2.$$scope);
+  };
+  $$self.$$.update = () => {
+    if ($$self.$$.dirty & /*slotSeparate*/
+    1) {
+      $$invalidate(0, slotSeparate = typeof slotSeparate === "boolean" ? slotSeparate : false);
+    }
+    if ($$self.$$.dirty & /*oldTransition, transition*/
+    163840) {
+      if (oldTransition !== transition) {
+        const newTransition = typeof transition === "function" ? transition : void 0;
+        $$invalidate(1, inTransition = newTransition);
+        $$invalidate(2, outTransition = newTransition);
+        $$invalidate(17, oldTransition = newTransition);
+      }
+    }
+    if ($$self.$$.dirty & /*oldTransitionOptions, transitionOptions*/
+    327680) {
+      if (oldTransitionOptions !== transitionOptions) {
+        const newOptions = transitionOptions !== TJSDefaultTransition.options && isObject(transitionOptions) ? transitionOptions : TJSDefaultTransition.options;
+        $$invalidate(3, inTransitionOptions = newOptions);
+        $$invalidate(4, outTransitionOptions = newOptions);
+        $$invalidate(18, oldTransitionOptions = newOptions);
+      }
+    }
+    if ($$self.$$.dirty & /*inTransition*/
+    2) {
+      if (typeof inTransition !== "function") {
+        $$invalidate(1, inTransition = void 0);
+      }
+    }
+    if ($$self.$$.dirty & /*outTransition*/
+    4) {
+      if (typeof outTransition !== "function") {
+        $$invalidate(2, outTransition = void 0);
+      }
+    }
+    if ($$self.$$.dirty & /*inTransitionOptions*/
+    8) {
+      if (!isObject(inTransitionOptions)) {
+        $$invalidate(3, inTransitionOptions = TJSDefaultTransition.options);
+      }
+    }
+    if ($$self.$$.dirty & /*outTransitionOptions*/
+    16) {
+      if (!isObject(outTransitionOptions)) {
+        $$invalidate(4, outTransitionOptions = TJSDefaultTransition.options);
+      }
+    }
+  };
+  return [
+    slotSeparate,
+    inTransition,
+    outTransition,
+    inTransitionOptions,
+    outTransitionOptions,
+    background,
+    id,
+    styles,
+    zIndex,
+    backgroundEl,
+    containerEl,
+    glassPaneEl,
+    swallow,
+    captureInput,
+    closeOnInput,
+    transition,
+    transitionOptions,
+    oldTransition,
+    oldTransitionOptions,
+    $$scope,
+    slots,
+    div0_binding,
+    div1_binding,
+    div_binding,
+    div_binding_1
+  ];
+}
+class TJSGlassPane extends SvelteComponent {
+  constructor(options) {
+    super();
+    init$1(this, options, instance$8, create_fragment$8, safe_not_equal, {
+      background: 5,
+      captureInput: 13,
+      closeOnInput: 14,
+      id: 6,
+      slotSeparate: 0,
+      styles: 7,
+      zIndex: 8,
+      transition: 15,
+      inTransition: 1,
+      outTransition: 2,
+      transitionOptions: 16,
+      inTransitionOptions: 3,
+      outTransitionOptions: 4
+    });
+  }
+}
 class AppShellContextInternal {
   /** @type {InternalAppStores} */
   #stores;
@@ -4452,22 +5529,22 @@ ${JSON.stringify(config)}`
   }
   return {};
 }
-function localize$1(stringId, data) {
+function localize(stringId, data) {
   const result = !isObject(data) ? globalThis.game.i18n.localize(stringId) : globalThis.game.i18n.format(stringId, data);
   return result !== void 0 ? result : "";
 }
 function writableDerived(origins, derive, reflect, initial) {
   var childDerivedSetter, originValues, blockNextDerive = false;
   var reflectOldValues = reflect.length >= 2;
-  var wrappedDerive = (got, set, update3) => {
-    childDerivedSetter = set;
+  var wrappedDerive = (got, set2, update3) => {
+    childDerivedSetter = set2;
     if (reflectOldValues) {
       originValues = got;
     }
     if (!blockNextDerive) {
-      let returned = derive(got, set, update3);
+      let returned = derive(got, set2, update3);
       if (derive.length < 2) {
-        set(returned);
+        set2(returned);
       } else {
         return returned;
       }
@@ -12416,7 +13493,7 @@ class DraggableOptions {
   }
 }
 draggable.options = (options) => new DraggableOptions(options);
-function create_if_block$2(ctx) {
+function create_if_block$4(ctx) {
   let span;
   let t;
   return {
@@ -12462,7 +13539,7 @@ function create_if_block$2(ctx) {
     }
   };
 }
-function create_fragment$5(ctx) {
+function create_fragment$7(ctx) {
   let a;
   let html_tag;
   let html_anchor;
@@ -12472,7 +13549,7 @@ function create_fragment$5(ctx) {
   let dispose;
   let if_block = (
     /*label*/
-    ctx[3] && create_if_block$2(ctx)
+    ctx[3] && create_if_block$4(ctx)
   );
   return {
     c() {
@@ -12552,7 +13629,7 @@ function create_fragment$5(ctx) {
         if (if_block) {
           if_block.p(ctx2, dirty);
         } else {
-          if_block = create_if_block$2(ctx2);
+          if_block = create_if_block$4(ctx2);
           if_block.c();
           if_block.m(a, null);
         }
@@ -12602,8 +13679,8 @@ function create_fragment$5(ctx) {
     }
   };
 }
-const s_REGEX_HTML = /^\s*<.*>$/;
-function instance$5($$self, $$props, $$invalidate) {
+const s_REGEX_HTML$1 = /^\s*<.*>$/;
+function instance$7($$self, $$props, $$invalidate) {
   let title;
   let icon;
   let label;
@@ -12648,15 +13725,15 @@ function instance$5($$self, $$props, $$invalidate) {
   $$self.$$.update = () => {
     if ($$self.$$.dirty & /*button*/
     1) {
-      $$invalidate(9, title = isObject(button) && typeof button.title === "string" ? localize$1(button.title) : "");
+      $$invalidate(9, title = isObject(button) && typeof button.title === "string" ? localize(button.title) : "");
     }
     if ($$self.$$.dirty & /*button, title*/
     513) {
-      $$invalidate(4, icon = isObject(button) && typeof button.icon !== "string" ? void 0 : s_REGEX_HTML.test(button.icon) ? button.icon : `<i class="${button.icon}" title="${title}"></i>`);
+      $$invalidate(4, icon = isObject(button) && typeof button.icon !== "string" ? void 0 : s_REGEX_HTML$1.test(button.icon) ? button.icon : `<i class="${button.icon}" title="${title}"></i>`);
     }
     if ($$self.$$.dirty & /*button*/
     1) {
-      $$invalidate(3, label = isObject(button) && typeof button.label === "string" ? localize$1(button.label) : void 0);
+      $$invalidate(3, label = isObject(button) && typeof button.label === "string" ? localize(button.label) : void 0);
     }
     if ($$self.$$.dirty & /*button*/
     1) {
@@ -12687,7 +13764,7 @@ function instance$5($$self, $$props, $$invalidate) {
 class TJSHeaderButton extends SvelteComponent {
   constructor(options) {
     super();
-    init$1(this, options, instance$5, create_fragment$5, safe_not_equal, { button: 0 });
+    init$1(this, options, instance$7, create_fragment$7, safe_not_equal, { button: 0 });
   }
   get button() {
     return this.$$.ctx[0];
@@ -12697,7 +13774,7 @@ class TJSHeaderButton extends SvelteComponent {
     flush();
   }
 }
-function get_each_context(ctx, list, i) {
+function get_each_context$1(ctx, list, i) {
   const child_ctx = ctx.slice();
   child_ctx[31] = list[i];
   return child_ctx;
@@ -12707,7 +13784,7 @@ function get_each_context_1(ctx, list, i) {
   child_ctx[31] = list[i];
   return child_ctx;
 }
-function create_if_block$1(ctx) {
+function create_if_block$3(ctx) {
   let img;
   let img_src_value;
   return {
@@ -12820,7 +13897,7 @@ function create_each_block_1(ctx) {
     }
   };
 }
-function create_each_block(ctx) {
+function create_each_block$1(ctx) {
   let switch_instance;
   let switch_instance_anchor;
   let current;
@@ -12909,7 +13986,7 @@ function create_key_block(ctx) {
   let header;
   let t0;
   let h4;
-  let t1_value = localize$1(
+  let t1_value = localize(
     /*$storeTitle*/
     ctx[7]
   ) + "";
@@ -12924,7 +14001,7 @@ function create_key_block(ctx) {
   let mounted;
   let dispose;
   let if_block = typeof /*$storeHeaderIcon*/
-  ctx[6] === "string" && create_if_block$1(ctx);
+  ctx[6] === "string" && create_if_block$3(ctx);
   let each_value_1 = ensure_array_like(
     /*buttonsLeft*/
     ctx[1]
@@ -12942,7 +14019,7 @@ function create_key_block(ctx) {
   );
   let each_blocks = [];
   for (let i = 0; i < each_value.length; i += 1) {
-    each_blocks[i] = create_each_block(get_each_context(ctx, each_value, i));
+    each_blocks[i] = create_each_block$1(get_each_context$1(ctx, each_value, i));
   }
   const out_1 = (i) => transition_out(each_blocks[i], 1, 1, () => {
     each_blocks[i] = null;
@@ -13027,7 +14104,7 @@ function create_key_block(ctx) {
         if (if_block) {
           if_block.p(ctx2, dirty);
         } else {
-          if_block = create_if_block$1(ctx2);
+          if_block = create_if_block$3(ctx2);
           if_block.c();
           if_block.m(header, t0);
         }
@@ -13036,7 +14113,7 @@ function create_key_block(ctx) {
         if_block = null;
       }
       if ((!current || dirty[0] & /*$storeTitle*/
-      128) && t1_value !== (t1_value = localize$1(
+      128) && t1_value !== (t1_value = localize(
         /*$storeTitle*/
         ctx2[7]
       ) + "")) set_data(t1, t1_value);
@@ -13082,12 +14159,12 @@ function create_key_block(ctx) {
         );
         let i;
         for (i = 0; i < each_value.length; i += 1) {
-          const child_ctx = get_each_context(ctx2, each_value, i);
+          const child_ctx = get_each_context$1(ctx2, each_value, i);
           if (each_blocks[i]) {
             each_blocks[i].p(child_ctx, dirty);
             transition_in(each_blocks[i], 1);
           } else {
-            each_blocks[i] = create_each_block(child_ctx);
+            each_blocks[i] = create_each_block$1(child_ctx);
             each_blocks[i].c();
             transition_in(each_blocks[i], 1);
             each_blocks[i].m(header, null);
@@ -13145,7 +14222,7 @@ function create_key_block(ctx) {
     }
   };
 }
-function create_fragment$4(ctx) {
+function create_fragment$6(ctx) {
   let previous_key = (
     /*draggable*/
     ctx[0]
@@ -13195,7 +14272,7 @@ function create_fragment$4(ctx) {
     }
   };
 }
-function instance$4($$self, $$props, $$invalidate) {
+function instance$6($$self, $$props, $$invalidate) {
   let $focusKeep;
   let $focusAuto;
   let $elementRoot;
@@ -13351,10 +14428,10 @@ function instance$4($$self, $$props, $$invalidate) {
 class TJSApplicationHeader extends SvelteComponent {
   constructor(options) {
     super();
-    init$1(this, options, instance$4, create_fragment$4, safe_not_equal, { draggable: 0, draggableOptions: 20 }, null, [-1, -1]);
+    init$1(this, options, instance$6, create_fragment$6, safe_not_equal, { draggable: 0, draggableOptions: 20 }, null, [-1, -1]);
   }
 }
-function create_fragment$3(ctx) {
+function create_fragment$5(ctx) {
   let div;
   let mounted;
   let dispose;
@@ -13390,7 +14467,7 @@ function create_fragment$3(ctx) {
     }
   };
 }
-function instance$3($$self, $$props, $$invalidate) {
+function instance$5($$self, $$props, $$invalidate) {
   let { elementRoot = void 0 } = $$props;
   let { enabled = true } = $$props;
   let ignoreElements, wrapEl;
@@ -13430,10 +14507,10 @@ function instance$3($$self, $$props, $$invalidate) {
 class TJSFocusWrap extends SvelteComponent {
   constructor(options) {
     super();
-    init$1(this, options, instance$3, create_fragment$3, safe_not_equal, { elementRoot: 2, enabled: 3 });
+    init$1(this, options, instance$5, create_fragment$5, safe_not_equal, { elementRoot: 2, enabled: 3 });
   }
 }
-function create_fragment$2(ctx) {
+function create_fragment$4(ctx) {
   let div;
   let resizable_action;
   let mounted;
@@ -13487,7 +14564,7 @@ function create_fragment$2(ctx) {
     }
   };
 }
-function instance$2($$self, $$props, $$invalidate) {
+function instance$4($$self, $$props, $$invalidate) {
   let $storeElementRoot;
   let $storeMinimized;
   let $storeResizable;
@@ -13615,10 +14692,10 @@ function instance$2($$self, $$props, $$invalidate) {
 class ResizableHandle extends SvelteComponent {
   constructor(options) {
     super();
-    init$1(this, options, instance$2, create_fragment$2, safe_not_equal, { isResizable: 7 });
+    init$1(this, options, instance$4, create_fragment$4, safe_not_equal, { isResizable: 7 });
   }
 }
-function create_else_block(ctx) {
+function create_else_block$1(ctx) {
   let div;
   let tjsapplicationheader;
   let t0;
@@ -13865,7 +14942,7 @@ function create_else_block(ctx) {
     }
   };
 }
-function create_if_block(ctx) {
+function create_if_block$2(ctx) {
   let div;
   let tjsapplicationheader;
   let t0;
@@ -14127,12 +15204,12 @@ function create_if_block(ctx) {
     }
   };
 }
-function create_fragment$1(ctx) {
+function create_fragment$3(ctx) {
   let current_block_type_index;
   let if_block;
   let if_block_anchor;
   let current;
-  const if_block_creators = [create_if_block, create_else_block];
+  const if_block_creators = [create_if_block$2, create_else_block$1];
   const if_blocks = [];
   function select_block_type(ctx2, dirty) {
     if (
@@ -14193,7 +15270,7 @@ function create_fragment$1(ctx) {
     }
   };
 }
-function instance$1($$self, $$props, $$invalidate) {
+function instance$3($$self, $$props, $$invalidate) {
   let $focusKeep;
   let $focusAuto;
   let $minimized;
@@ -14471,8 +15548,8 @@ class ApplicationShell extends SvelteComponent {
     init$1(
       this,
       options,
-      instance$1,
-      create_fragment$1,
+      instance$3,
+      create_fragment$3,
       safe_not_equal,
       {
         elementContent: 0,
@@ -14609,6 +15686,1536 @@ class ApplicationShell extends SvelteComponent {
     flush();
   }
 }
+function get_each_context(ctx, list, i) {
+  const child_ctx = ctx.slice();
+  child_ctx[26] = list[i];
+  return child_ctx;
+}
+function create_if_block_3(ctx) {
+  let switch_instance;
+  let switch_instance_anchor;
+  let current;
+  const switch_instance_spread_levels = [
+    /*dialogProps*/
+    ctx[7]
+  ];
+  var switch_value = (
+    /*dialogClass*/
+    ctx[6]
+  );
+  function switch_props(ctx2, dirty) {
+    let switch_instance_props = {};
+    for (let i = 0; i < switch_instance_spread_levels.length; i += 1) {
+      switch_instance_props = assign(switch_instance_props, switch_instance_spread_levels[i]);
+    }
+    if (dirty !== void 0 && dirty & /*dialogProps*/
+    128) {
+      switch_instance_props = assign(switch_instance_props, get_spread_update(switch_instance_spread_levels, [get_spread_object(
+        /*dialogProps*/
+        ctx2[7]
+      )]));
+    }
+    return { props: switch_instance_props };
+  }
+  if (switch_value) {
+    switch_instance = construct_svelte_component(switch_value, switch_props(ctx));
+    ctx[16](switch_instance);
+  }
+  return {
+    c() {
+      if (switch_instance) create_component(switch_instance.$$.fragment);
+      switch_instance_anchor = empty();
+    },
+    m(target, anchor) {
+      if (switch_instance) mount_component(switch_instance, target, anchor);
+      insert(target, switch_instance_anchor, anchor);
+      current = true;
+    },
+    p(ctx2, dirty) {
+      if (dirty & /*dialogClass*/
+      64 && switch_value !== (switch_value = /*dialogClass*/
+      ctx2[6])) {
+        if (switch_instance) {
+          group_outros();
+          const old_component = switch_instance;
+          transition_out(old_component.$$.fragment, 1, 0, () => {
+            destroy_component(old_component, 1);
+          });
+          check_outros();
+        }
+        if (switch_value) {
+          switch_instance = construct_svelte_component(switch_value, switch_props(ctx2, dirty));
+          ctx2[16](switch_instance);
+          create_component(switch_instance.$$.fragment);
+          transition_in(switch_instance.$$.fragment, 1);
+          mount_component(switch_instance, switch_instance_anchor.parentNode, switch_instance_anchor);
+        } else {
+          switch_instance = null;
+        }
+      } else if (switch_value) {
+        const switch_instance_changes = dirty & /*dialogProps*/
+        128 ? get_spread_update(switch_instance_spread_levels, [get_spread_object(
+          /*dialogProps*/
+          ctx2[7]
+        )]) : {};
+        switch_instance.$set(switch_instance_changes);
+      }
+    },
+    i(local) {
+      if (current) return;
+      if (switch_instance) transition_in(switch_instance.$$.fragment, local);
+      current = true;
+    },
+    o(local) {
+      if (switch_instance) transition_out(switch_instance.$$.fragment, local);
+      current = false;
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(switch_instance_anchor);
+      }
+      ctx[16](null);
+      if (switch_instance) destroy_component(switch_instance, detaching);
+    }
+  };
+}
+function create_if_block_2(ctx) {
+  let html_tag;
+  let html_anchor;
+  return {
+    c() {
+      html_tag = new HtmlTag(false);
+      html_anchor = empty();
+      html_tag.a = html_anchor;
+    },
+    m(target, anchor) {
+      html_tag.m(
+        /*content*/
+        ctx[3],
+        target,
+        anchor
+      );
+      insert(target, html_anchor, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty & /*content*/
+      8) html_tag.p(
+        /*content*/
+        ctx2[3]
+      );
+    },
+    i: noop,
+    o: noop,
+    d(detaching) {
+      if (detaching) {
+        detach(html_anchor);
+        html_tag.d();
+      }
+    }
+  };
+}
+function create_if_block$1(ctx) {
+  let div;
+  let each_blocks = [];
+  let each_1_lookup = /* @__PURE__ */ new Map();
+  let each_value = ensure_array_like(
+    /*buttons*/
+    ctx[1]
+  );
+  const get_key = (ctx2) => (
+    /*button*/
+    ctx2[26].id
+  );
+  for (let i = 0; i < each_value.length; i += 1) {
+    let child_ctx = get_each_context(ctx, each_value, i);
+    let key = get_key(child_ctx);
+    each_1_lookup.set(key, each_blocks[i] = create_each_block(key, child_ctx));
+  }
+  return {
+    c() {
+      div = element("div");
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].c();
+      }
+      attr(div, "class", "dialog-buttons tjs-dialog-buttons svelte-1ez4adq");
+    },
+    m(target, anchor) {
+      insert(target, div, anchor);
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        if (each_blocks[i]) {
+          each_blocks[i].m(div, null);
+        }
+      }
+      ctx[20](div);
+    },
+    p(ctx2, dirty) {
+      if (dirty & /*buttons, onClick, currentButtonId*/
+      530) {
+        each_value = ensure_array_like(
+          /*buttons*/
+          ctx2[1]
+        );
+        each_blocks = update_keyed_each(each_blocks, dirty, get_key, 1, ctx2, each_value, each_1_lookup, div, destroy_block, create_each_block, null, get_each_context);
+      }
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(div);
+      }
+      for (let i = 0; i < each_blocks.length; i += 1) {
+        each_blocks[i].d();
+      }
+      ctx[20](null);
+    }
+  };
+}
+function create_if_block_1(ctx) {
+  let html_tag;
+  let raw_value = (
+    /*button*/
+    ctx[26].icon + ""
+  );
+  let html_anchor;
+  return {
+    c() {
+      html_tag = new HtmlTag(false);
+      html_anchor = empty();
+      html_tag.a = html_anchor;
+    },
+    m(target, anchor) {
+      html_tag.m(raw_value, target, anchor);
+      insert(target, html_anchor, anchor);
+    },
+    p(ctx2, dirty) {
+      if (dirty & /*buttons*/
+      2 && raw_value !== (raw_value = /*button*/
+      ctx2[26].icon + "")) html_tag.p(raw_value);
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(html_anchor);
+        html_tag.d();
+      }
+    }
+  };
+}
+function create_each_block(key_1, ctx) {
+  let button_1;
+  let span;
+  let t0_value = (
+    /*button*/
+    ctx[26].label + ""
+  );
+  let t0;
+  let span_title_value;
+  let t1;
+  let button_1_class_value;
+  let button_1_disabled_value;
+  let applyStyles_action;
+  let mounted;
+  let dispose;
+  let if_block = (
+    /*button*/
+    ctx[26].icon && create_if_block_1(ctx)
+  );
+  function click_handler() {
+    return (
+      /*click_handler*/
+      ctx[18](
+        /*button*/
+        ctx[26]
+      )
+    );
+  }
+  function focus_handler() {
+    return (
+      /*focus_handler*/
+      ctx[19](
+        /*button*/
+        ctx[26]
+      )
+    );
+  }
+  return {
+    key: key_1,
+    first: null,
+    c() {
+      button_1 = element("button");
+      span = element("span");
+      if (if_block) if_block.c();
+      t0 = text(t0_value);
+      t1 = space();
+      attr(span, "title", span_title_value = /*button*/
+      ctx[26].title);
+      attr(button_1, "class", button_1_class_value = "dialog-button tjs-dialog-button " + /*button*/
+      ctx[26].id + " svelte-1ez4adq");
+      button_1.disabled = button_1_disabled_value = /*button*/
+      ctx[26].disabled;
+      this.first = button_1;
+    },
+    m(target, anchor) {
+      insert(target, button_1, anchor);
+      append(button_1, span);
+      if (if_block) if_block.m(span, null);
+      append(span, t0);
+      append(button_1, t1);
+      if (!mounted) {
+        dispose = [
+          listen(button_1, "click", stop_propagation(prevent_default(click_handler))),
+          listen(button_1, "focus", focus_handler),
+          action_destroyer(applyStyles_action = applyStyles.call(
+            null,
+            button_1,
+            /*button*/
+            ctx[26].styles
+          ))
+        ];
+        mounted = true;
+      }
+    },
+    p(new_ctx, dirty) {
+      ctx = new_ctx;
+      if (
+        /*button*/
+        ctx[26].icon
+      ) {
+        if (if_block) {
+          if_block.p(ctx, dirty);
+        } else {
+          if_block = create_if_block_1(ctx);
+          if_block.c();
+          if_block.m(span, t0);
+        }
+      } else if (if_block) {
+        if_block.d(1);
+        if_block = null;
+      }
+      if (dirty & /*buttons*/
+      2 && t0_value !== (t0_value = /*button*/
+      ctx[26].label + "")) set_data(t0, t0_value);
+      if (dirty & /*buttons*/
+      2 && span_title_value !== (span_title_value = /*button*/
+      ctx[26].title)) {
+        attr(span, "title", span_title_value);
+      }
+      if (dirty & /*buttons*/
+      2 && button_1_class_value !== (button_1_class_value = "dialog-button tjs-dialog-button " + /*button*/
+      ctx[26].id + " svelte-1ez4adq")) {
+        attr(button_1, "class", button_1_class_value);
+      }
+      if (dirty & /*buttons*/
+      2 && button_1_disabled_value !== (button_1_disabled_value = /*button*/
+      ctx[26].disabled)) {
+        button_1.disabled = button_1_disabled_value;
+      }
+      if (applyStyles_action && is_function(applyStyles_action.update) && dirty & /*buttons*/
+      2) applyStyles_action.update.call(
+        null,
+        /*button*/
+        ctx[26].styles
+      );
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(button_1);
+      }
+      if (if_block) if_block.d();
+      mounted = false;
+      run_all(dispose);
+    }
+  };
+}
+function create_fragment$2(ctx) {
+  let main;
+  let div;
+  let current_block_type_index;
+  let if_block0;
+  let t;
+  let current;
+  const if_block_creators = [create_if_block_2, create_if_block_3];
+  const if_blocks = [];
+  function select_block_type(ctx2, dirty) {
+    if (typeof /*content*/
+    ctx2[3] === "string") return 0;
+    if (
+      /*dialogClass*/
+      ctx2[6]
+    ) return 1;
+    return -1;
+  }
+  if (~(current_block_type_index = select_block_type(ctx))) {
+    if_block0 = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
+  }
+  let if_block1 = (
+    /*buttons*/
+    ctx[1].length && create_if_block$1(ctx)
+  );
+  return {
+    c() {
+      main = element("main");
+      div = element("div");
+      if (if_block0) if_block0.c();
+      t = space();
+      if (if_block1) if_block1.c();
+      attr(div, "class", "dialog-content");
+    },
+    m(target, anchor) {
+      insert(target, main, anchor);
+      append(main, div);
+      if (~current_block_type_index) {
+        if_blocks[current_block_type_index].m(div, null);
+      }
+      ctx[17](div);
+      append(main, t);
+      if (if_block1) if_block1.m(main, null);
+      current = true;
+    },
+    p(ctx2, [dirty]) {
+      let previous_block_index = current_block_type_index;
+      current_block_type_index = select_block_type(ctx2);
+      if (current_block_type_index === previous_block_index) {
+        if (~current_block_type_index) {
+          if_blocks[current_block_type_index].p(ctx2, dirty);
+        }
+      } else {
+        if (if_block0) {
+          group_outros();
+          transition_out(if_blocks[previous_block_index], 1, 1, () => {
+            if_blocks[previous_block_index] = null;
+          });
+          check_outros();
+        }
+        if (~current_block_type_index) {
+          if_block0 = if_blocks[current_block_type_index];
+          if (!if_block0) {
+            if_block0 = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx2);
+            if_block0.c();
+          } else {
+            if_block0.p(ctx2, dirty);
+          }
+          transition_in(if_block0, 1);
+          if_block0.m(div, null);
+        } else {
+          if_block0 = null;
+        }
+      }
+      if (
+        /*buttons*/
+        ctx2[1].length
+      ) {
+        if (if_block1) {
+          if_block1.p(ctx2, dirty);
+        } else {
+          if_block1 = create_if_block$1(ctx2);
+          if_block1.c();
+          if_block1.m(main, null);
+        }
+      } else if (if_block1) {
+        if_block1.d(1);
+        if_block1 = null;
+      }
+    },
+    i(local) {
+      if (current) return;
+      transition_in(if_block0);
+      current = true;
+    },
+    o(local) {
+      transition_out(if_block0);
+      current = false;
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(main);
+      }
+      if (~current_block_type_index) {
+        if_blocks[current_block_type_index].d();
+      }
+      ctx[17](null);
+      if (if_block1) if_block1.d();
+    }
+  };
+}
+const s_REGEX_HTML = /^\s*<.*>$/;
+function instance$2($$self, $$props, $$invalidate) {
+  let autoClose;
+  let focusFirst;
+  let resolveId;
+  let $elementRoot;
+  let { data = void 0 } = $$props;
+  let { preventDefault = false } = $$props;
+  let { stopPropagation = false } = $$props;
+  let { dialogComponent = void 0 } = $$props;
+  let buttons;
+  let contentEl;
+  let buttonsEl;
+  let content = void 0;
+  let dialogClass;
+  let dialogProps = {};
+  let { elementRoot } = getContext("#internal").stores;
+  component_subscribe($$self, elementRoot, (value) => $$invalidate(15, $elementRoot = value));
+  let { application } = getContext("#external");
+  let managedPromise = getContext("#managedPromise");
+  let currentButtonId = data.default;
+  onDestroy(() => {
+    const rootEl = $elementRoot;
+    if (rootEl instanceof HTMLElement) {
+      rootEl.removeEventListener("keydown", onKeydown);
+      rootEl.removeEventListener("keyup", onKeyup);
+    }
+  });
+  onMount(() => {
+    if (focusFirst) {
+      const focusEl = A11yHelper.getFirstFocusableElement(contentEl);
+      if (focusEl instanceof HTMLElement) {
+        setTimeout(() => focusEl.focus(), 0);
+      }
+    }
+  });
+  function onClick(button) {
+    try {
+      let result = void 0;
+      const callback = button?.onPress;
+      switch (typeof callback) {
+        case "function":
+          result = callback(application);
+          break;
+        case "string":
+          if (dialogComponent !== void 0 && typeof dialogComponent[callback] === "function") {
+            result = dialogComponent[callback](application);
+          } else {
+            if (dialogComponent === void 0) {
+              console.warn(`[TRL] TJSDialog warning: 'onPress' defined as a string with no associated content Svelte component.`);
+            } else if (typeof dialogComponent?.[callback] !== "function") {
+              console.warn(`[TRL] TJSDialog warning: The content Svelte component does not contain an associated function '${callback}'. Did you remember to add '<svelte:options accessors={true} />' and export the function?`);
+            }
+          }
+          break;
+      }
+      if (button.autoClose && autoClose) {
+        if (resolveId && result === void 0) {
+          result = button.id;
+        }
+        managedPromise.resolve(result);
+      }
+    } catch (err) {
+      const notifyError = typeof data.notifyError === "boolean" ? data.notifyError : true;
+      if (notifyError) {
+        globalThis.ui.notifications.error(err, { console: false });
+      }
+      if (!managedPromise.reject(err)) {
+        throw err;
+      }
+    } finally {
+      if (button.autoClose && autoClose) {
+        application.close();
+      }
+    }
+  }
+  function onKeydown(event) {
+    switch (event.code) {
+      case "ArrowLeft":
+      case "ArrowRight":
+      case "Enter":
+        event.stopPropagation();
+        break;
+      case "Tab":
+        event.stopPropagation();
+        setTimeout(
+          () => {
+            const activeElement = document.activeElement;
+            if (activeElement instanceof HTMLElement && buttonsEl instanceof HTMLElement && buttonsEl.contains(activeElement)) {
+              for (let cntr = 0; cntr < activeElement.classList.length; cntr++) {
+                const item = activeElement.classList.item(cntr);
+                if (item !== "dialog-button" && item !== "default" && typeof data.buttons[item] !== void 0) {
+                  $$invalidate(4, currentButtonId = item);
+                  break;
+                }
+              }
+            }
+          },
+          0
+        );
+        break;
+      default:
+        if (preventDefault) {
+          event.preventDefault();
+        }
+        if (stopPropagation) {
+          event.stopPropagation();
+        }
+        break;
+    }
+  }
+  function onKeyup(event) {
+    switch (event.code) {
+      case "ArrowLeft": {
+        event.preventDefault();
+        event.stopPropagation();
+        const activeEl = document.activeElement;
+        if (buttonsEl instanceof HTMLElement) {
+          if (activeEl instanceof HTMLElement && buttonsEl.contains(activeEl)) {
+            const currentIndex = buttons.findIndex((button) => button.id === currentButtonId);
+            if (buttons.length && currentIndex > 0) {
+              $$invalidate(4, currentButtonId = buttons[currentIndex - 1].id);
+            }
+          }
+          const buttonEl = buttonsEl.querySelector(`.${currentButtonId}`);
+          if (buttonEl instanceof HTMLElement) {
+            buttonEl.focus();
+          }
+        }
+        break;
+      }
+      case "ArrowRight": {
+        event.preventDefault();
+        event.stopPropagation();
+        const activeEl = document.activeElement;
+        if (buttonsEl instanceof HTMLElement) {
+          if (activeEl instanceof HTMLElement && (buttonsEl.contains(activeEl) || currentButtonId === void 0)) {
+            const currentIndex = buttons.findIndex((button) => button.id === currentButtonId);
+            if (buttons.length && currentIndex < buttons.length - 1) {
+              $$invalidate(4, currentButtonId = buttons[currentIndex + 1].id);
+            }
+          }
+          const buttonEl = buttonsEl.querySelector(`.${currentButtonId}`);
+          if (buttonEl instanceof HTMLElement) {
+            buttonEl.focus();
+          }
+        }
+        break;
+      }
+      case "Enter":
+        event.preventDefault();
+        event.stopPropagation();
+        break;
+      default:
+        if (preventDefault) {
+          event.preventDefault();
+        }
+        if (stopPropagation) {
+          event.stopPropagation();
+        }
+        break;
+    }
+  }
+  function switch_instance_binding($$value) {
+    binding_callbacks[$$value ? "unshift" : "push"](() => {
+      dialogComponent = $$value;
+      $$invalidate(0, dialogComponent);
+    });
+  }
+  function div_binding($$value) {
+    binding_callbacks[$$value ? "unshift" : "push"](() => {
+      contentEl = $$value;
+      $$invalidate(5, contentEl);
+    });
+  }
+  const click_handler = (button) => onClick(button);
+  const focus_handler = (button) => $$invalidate(4, currentButtonId = button.id);
+  function div_binding_1($$value) {
+    binding_callbacks[$$value ? "unshift" : "push"](() => {
+      buttonsEl = $$value;
+      $$invalidate(2, buttonsEl);
+    });
+  }
+  $$self.$$set = ($$props2) => {
+    if ("data" in $$props2) $$invalidate(10, data = $$props2.data);
+    if ("preventDefault" in $$props2) $$invalidate(11, preventDefault = $$props2.preventDefault);
+    if ("stopPropagation" in $$props2) $$invalidate(12, stopPropagation = $$props2.stopPropagation);
+    if ("dialogComponent" in $$props2) $$invalidate(0, dialogComponent = $$props2.dialogComponent);
+  };
+  $$self.$$.update = () => {
+    if ($$self.$$.dirty & /*$elementRoot*/
+    32768) {
+      if ($elementRoot) {
+        const rootEl = $elementRoot;
+        if (rootEl instanceof HTMLElement) {
+          rootEl.addEventListener("keydown", onKeydown);
+          rootEl.addEventListener("keyup", onKeyup);
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data*/
+    1024) {
+      $$invalidate(13, autoClose = typeof data.autoClose === "boolean" ? data.autoClose : true);
+    }
+    if ($$self.$$.dirty & /*data*/
+    1024) {
+      $$invalidate(14, focusFirst = typeof data.focusFirst === "boolean" ? data.focusFirst : false);
+    }
+    if ($$self.$$.dirty & /*data*/
+    1024) {
+      {
+        $$invalidate(1, buttons = !isObject(data.buttons) ? [] : Object.keys(data.buttons).reduce(
+          (array, key) => {
+            const b = data.buttons[key];
+            const icon = typeof b.icon !== "string" ? void 0 : s_REGEX_HTML.test(b.icon) ? b.icon : `<i class="${b.icon}"></i>`;
+            const autoClose2 = typeof b.autoClose === "boolean" ? b.autoClose : true;
+            const disabled = typeof b.disabled === "boolean" ? b.disabled : false;
+            const label = typeof b.label === "string" ? `${icon !== void 0 ? " " : ""}${localize(b.label)}` : "";
+            const title = typeof b.title === "string" ? localize(b.title) : void 0;
+            const condition = typeof b.condition === "function" ? b.condition.call(b) : b.condition ?? true;
+            if (condition) {
+              array.push({
+                ...b,
+                id: key,
+                autoClose: autoClose2,
+                icon,
+                label,
+                title,
+                disabled
+              });
+            }
+            return array;
+          },
+          []
+        ));
+      }
+    }
+    if ($$self.$$.dirty & /*buttons, currentButtonId*/
+    18) {
+      if (!buttons.find((button) => button.id === currentButtonId)) {
+        $$invalidate(4, currentButtonId = void 0);
+      }
+    }
+    if ($$self.$$.dirty & /*focusFirst, buttonsEl, currentButtonId*/
+    16404) {
+      if (!focusFirst && buttonsEl instanceof HTMLElement) {
+        const buttonEl = buttonsEl.querySelector(`.${currentButtonId}`);
+        if (buttonEl instanceof HTMLElement) {
+          buttonEl.focus();
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data*/
+    1024) {
+      resolveId = typeof data.resolveId === "boolean" ? data.resolveId : false;
+    }
+    if ($$self.$$.dirty & /*content, data*/
+    1032) {
+      if (content !== data.content) {
+        $$invalidate(
+          3,
+          content = data.content
+        );
+        try {
+          if (isSvelteComponent(content)) {
+            $$invalidate(6, dialogClass = content);
+            $$invalidate(7, dialogProps = {});
+          } else if (isObject(content)) {
+            const svelteConfig = parseTJSSvelteConfig(content, application);
+            $$invalidate(6, dialogClass = svelteConfig.class);
+            $$invalidate(7, dialogProps = svelteConfig.props ?? {});
+            const children2 = svelteConfig?.context?.get("external")?.children;
+            if (Array.isArray(children2)) {
+              $$invalidate(7, dialogProps.children = children2, dialogProps);
+            }
+          } else {
+            $$invalidate(6, dialogClass = void 0);
+            $$invalidate(7, dialogProps = {});
+          }
+        } catch (err) {
+          $$invalidate(6, dialogClass = void 0);
+          $$invalidate(7, dialogProps = {});
+          $$invalidate(3, content = err.message);
+          console.error(err);
+        }
+      }
+    }
+  };
+  return [
+    dialogComponent,
+    buttons,
+    buttonsEl,
+    content,
+    currentButtonId,
+    contentEl,
+    dialogClass,
+    dialogProps,
+    elementRoot,
+    onClick,
+    data,
+    preventDefault,
+    stopPropagation,
+    autoClose,
+    focusFirst,
+    $elementRoot,
+    switch_instance_binding,
+    div_binding,
+    click_handler,
+    focus_handler,
+    div_binding_1
+  ];
+}
+class DialogContent extends SvelteComponent {
+  constructor(options) {
+    super();
+    init$1(this, options, instance$2, create_fragment$2, safe_not_equal, {
+      data: 10,
+      preventDefault: 11,
+      stopPropagation: 12,
+      dialogComponent: 0
+    });
+  }
+}
+function create_else_block(ctx) {
+  let applicationshell;
+  let updating_elementRoot;
+  let updating_elementContent;
+  let current;
+  const applicationshell_spread_levels = [
+    /*appProps*/
+    ctx[6],
+    { appOffsetHeight: true }
+  ];
+  function applicationshell_elementRoot_binding_1(value) {
+    ctx[15](value);
+  }
+  function applicationshell_elementContent_binding_1(value) {
+    ctx[16](value);
+  }
+  let applicationshell_props = {
+    $$slots: { default: [create_default_slot_2] },
+    $$scope: { ctx }
+  };
+  for (let i = 0; i < applicationshell_spread_levels.length; i += 1) {
+    applicationshell_props = assign(applicationshell_props, applicationshell_spread_levels[i]);
+  }
+  if (
+    /*elementRoot*/
+    ctx[0] !== void 0
+  ) {
+    applicationshell_props.elementRoot = /*elementRoot*/
+    ctx[0];
+  }
+  if (
+    /*elementContent*/
+    ctx[1] !== void 0
+  ) {
+    applicationshell_props.elementContent = /*elementContent*/
+    ctx[1];
+  }
+  applicationshell = new ApplicationShell({ props: applicationshell_props });
+  binding_callbacks.push(() => bind(applicationshell, "elementRoot", applicationshell_elementRoot_binding_1));
+  binding_callbacks.push(() => bind(applicationshell, "elementContent", applicationshell_elementContent_binding_1));
+  return {
+    c() {
+      create_component(applicationshell.$$.fragment);
+    },
+    m(target, anchor) {
+      mount_component(applicationshell, target, anchor);
+      current = true;
+    },
+    p(ctx2, dirty) {
+      const applicationshell_changes = dirty & /*appProps*/
+      64 ? get_spread_update(applicationshell_spread_levels, [
+        get_spread_object(
+          /*appProps*/
+          ctx2[6]
+        ),
+        applicationshell_spread_levels[1]
+      ]) : {};
+      if (dirty & /*$$scope, data, dialogComponent*/
+      4194316) {
+        applicationshell_changes.$$scope = { dirty, ctx: ctx2 };
+      }
+      if (!updating_elementRoot && dirty & /*elementRoot*/
+      1) {
+        updating_elementRoot = true;
+        applicationshell_changes.elementRoot = /*elementRoot*/
+        ctx2[0];
+        add_flush_callback(() => updating_elementRoot = false);
+      }
+      if (!updating_elementContent && dirty & /*elementContent*/
+      2) {
+        updating_elementContent = true;
+        applicationshell_changes.elementContent = /*elementContent*/
+        ctx2[1];
+        add_flush_callback(() => updating_elementContent = false);
+      }
+      applicationshell.$set(applicationshell_changes);
+    },
+    i(local) {
+      if (current) return;
+      transition_in(applicationshell.$$.fragment, local);
+      current = true;
+    },
+    o(local) {
+      transition_out(applicationshell.$$.fragment, local);
+      current = false;
+    },
+    d(detaching) {
+      destroy_component(applicationshell, detaching);
+    }
+  };
+}
+function create_if_block(ctx) {
+  let tjsglasspane;
+  let current;
+  const tjsglasspane_spread_levels = [
+    {
+      id: `${/*application*/
+      ctx[4].id}-glasspane`
+    },
+    /*modalProps*/
+    ctx[7],
+    { zIndex: (
+      /*zIndex*/
+      ctx[8]
+    ) }
+  ];
+  let tjsglasspane_props = {
+    $$slots: { default: [create_default_slot$1] },
+    $$scope: { ctx }
+  };
+  for (let i = 0; i < tjsglasspane_spread_levels.length; i += 1) {
+    tjsglasspane_props = assign(tjsglasspane_props, tjsglasspane_spread_levels[i]);
+  }
+  tjsglasspane = new TJSGlassPane({ props: tjsglasspane_props });
+  tjsglasspane.$on(
+    "close:glasspane",
+    /*close_glasspane_handler*/
+    ctx[13]
+  );
+  return {
+    c() {
+      create_component(tjsglasspane.$$.fragment);
+    },
+    m(target, anchor) {
+      mount_component(tjsglasspane, target, anchor);
+      current = true;
+    },
+    p(ctx2, dirty) {
+      const tjsglasspane_changes = dirty & /*application, modalProps, zIndex*/
+      400 ? get_spread_update(tjsglasspane_spread_levels, [
+        dirty & /*application*/
+        16 && {
+          id: `${/*application*/
+          ctx2[4].id}-glasspane`
+        },
+        dirty & /*modalProps*/
+        128 && get_spread_object(
+          /*modalProps*/
+          ctx2[7]
+        ),
+        dirty & /*zIndex*/
+        256 && { zIndex: (
+          /*zIndex*/
+          ctx2[8]
+        ) }
+      ]) : {};
+      if (dirty & /*$$scope, appProps, elementRoot, elementContent, data, dialogComponent*/
+      4194383) {
+        tjsglasspane_changes.$$scope = { dirty, ctx: ctx2 };
+      }
+      tjsglasspane.$set(tjsglasspane_changes);
+    },
+    i(local) {
+      if (current) return;
+      transition_in(tjsglasspane.$$.fragment, local);
+      current = true;
+    },
+    o(local) {
+      transition_out(tjsglasspane.$$.fragment, local);
+      current = false;
+    },
+    d(detaching) {
+      destroy_component(tjsglasspane, detaching);
+    }
+  };
+}
+function create_default_slot_2(ctx) {
+  let dialogcontent;
+  let updating_dialogComponent;
+  let current;
+  function dialogcontent_dialogComponent_binding_1(value) {
+    ctx[14](value);
+  }
+  let dialogcontent_props = { data: (
+    /*data*/
+    ctx[3]
+  ) };
+  if (
+    /*dialogComponent*/
+    ctx[2] !== void 0
+  ) {
+    dialogcontent_props.dialogComponent = /*dialogComponent*/
+    ctx[2];
+  }
+  dialogcontent = new DialogContent({ props: dialogcontent_props });
+  binding_callbacks.push(() => bind(dialogcontent, "dialogComponent", dialogcontent_dialogComponent_binding_1));
+  return {
+    c() {
+      create_component(dialogcontent.$$.fragment);
+    },
+    m(target, anchor) {
+      mount_component(dialogcontent, target, anchor);
+      current = true;
+    },
+    p(ctx2, dirty) {
+      const dialogcontent_changes = {};
+      if (dirty & /*data*/
+      8) dialogcontent_changes.data = /*data*/
+      ctx2[3];
+      if (!updating_dialogComponent && dirty & /*dialogComponent*/
+      4) {
+        updating_dialogComponent = true;
+        dialogcontent_changes.dialogComponent = /*dialogComponent*/
+        ctx2[2];
+        add_flush_callback(() => updating_dialogComponent = false);
+      }
+      dialogcontent.$set(dialogcontent_changes);
+    },
+    i(local) {
+      if (current) return;
+      transition_in(dialogcontent.$$.fragment, local);
+      current = true;
+    },
+    o(local) {
+      transition_out(dialogcontent.$$.fragment, local);
+      current = false;
+    },
+    d(detaching) {
+      destroy_component(dialogcontent, detaching);
+    }
+  };
+}
+function create_default_slot_1(ctx) {
+  let dialogcontent;
+  let updating_dialogComponent;
+  let current;
+  function dialogcontent_dialogComponent_binding(value) {
+    ctx[10](value);
+  }
+  let dialogcontent_props = {
+    data: (
+      /*data*/
+      ctx[3]
+    ),
+    stopPropagation: true
+  };
+  if (
+    /*dialogComponent*/
+    ctx[2] !== void 0
+  ) {
+    dialogcontent_props.dialogComponent = /*dialogComponent*/
+    ctx[2];
+  }
+  dialogcontent = new DialogContent({ props: dialogcontent_props });
+  binding_callbacks.push(() => bind(dialogcontent, "dialogComponent", dialogcontent_dialogComponent_binding));
+  return {
+    c() {
+      create_component(dialogcontent.$$.fragment);
+    },
+    m(target, anchor) {
+      mount_component(dialogcontent, target, anchor);
+      current = true;
+    },
+    p(ctx2, dirty) {
+      const dialogcontent_changes = {};
+      if (dirty & /*data*/
+      8) dialogcontent_changes.data = /*data*/
+      ctx2[3];
+      if (!updating_dialogComponent && dirty & /*dialogComponent*/
+      4) {
+        updating_dialogComponent = true;
+        dialogcontent_changes.dialogComponent = /*dialogComponent*/
+        ctx2[2];
+        add_flush_callback(() => updating_dialogComponent = false);
+      }
+      dialogcontent.$set(dialogcontent_changes);
+    },
+    i(local) {
+      if (current) return;
+      transition_in(dialogcontent.$$.fragment, local);
+      current = true;
+    },
+    o(local) {
+      transition_out(dialogcontent.$$.fragment, local);
+      current = false;
+    },
+    d(detaching) {
+      destroy_component(dialogcontent, detaching);
+    }
+  };
+}
+function create_default_slot$1(ctx) {
+  let applicationshell;
+  let updating_elementRoot;
+  let updating_elementContent;
+  let current;
+  const applicationshell_spread_levels = [
+    /*appProps*/
+    ctx[6],
+    { appOffsetHeight: true }
+  ];
+  function applicationshell_elementRoot_binding(value) {
+    ctx[11](value);
+  }
+  function applicationshell_elementContent_binding(value) {
+    ctx[12](value);
+  }
+  let applicationshell_props = {
+    $$slots: { default: [create_default_slot_1] },
+    $$scope: { ctx }
+  };
+  for (let i = 0; i < applicationshell_spread_levels.length; i += 1) {
+    applicationshell_props = assign(applicationshell_props, applicationshell_spread_levels[i]);
+  }
+  if (
+    /*elementRoot*/
+    ctx[0] !== void 0
+  ) {
+    applicationshell_props.elementRoot = /*elementRoot*/
+    ctx[0];
+  }
+  if (
+    /*elementContent*/
+    ctx[1] !== void 0
+  ) {
+    applicationshell_props.elementContent = /*elementContent*/
+    ctx[1];
+  }
+  applicationshell = new ApplicationShell({ props: applicationshell_props });
+  binding_callbacks.push(() => bind(applicationshell, "elementRoot", applicationshell_elementRoot_binding));
+  binding_callbacks.push(() => bind(applicationshell, "elementContent", applicationshell_elementContent_binding));
+  return {
+    c() {
+      create_component(applicationshell.$$.fragment);
+    },
+    m(target, anchor) {
+      mount_component(applicationshell, target, anchor);
+      current = true;
+    },
+    p(ctx2, dirty) {
+      const applicationshell_changes = dirty & /*appProps*/
+      64 ? get_spread_update(applicationshell_spread_levels, [
+        get_spread_object(
+          /*appProps*/
+          ctx2[6]
+        ),
+        applicationshell_spread_levels[1]
+      ]) : {};
+      if (dirty & /*$$scope, data, dialogComponent*/
+      4194316) {
+        applicationshell_changes.$$scope = { dirty, ctx: ctx2 };
+      }
+      if (!updating_elementRoot && dirty & /*elementRoot*/
+      1) {
+        updating_elementRoot = true;
+        applicationshell_changes.elementRoot = /*elementRoot*/
+        ctx2[0];
+        add_flush_callback(() => updating_elementRoot = false);
+      }
+      if (!updating_elementContent && dirty & /*elementContent*/
+      2) {
+        updating_elementContent = true;
+        applicationshell_changes.elementContent = /*elementContent*/
+        ctx2[1];
+        add_flush_callback(() => updating_elementContent = false);
+      }
+      applicationshell.$set(applicationshell_changes);
+    },
+    i(local) {
+      if (current) return;
+      transition_in(applicationshell.$$.fragment, local);
+      current = true;
+    },
+    o(local) {
+      transition_out(applicationshell.$$.fragment, local);
+      current = false;
+    },
+    d(detaching) {
+      destroy_component(applicationshell, detaching);
+    }
+  };
+}
+function create_fragment$1(ctx) {
+  let current_block_type_index;
+  let if_block;
+  let if_block_anchor;
+  let current;
+  const if_block_creators = [create_if_block, create_else_block];
+  const if_blocks = [];
+  function select_block_type(ctx2, dirty) {
+    if (
+      /*modal*/
+      ctx2[5]
+    ) return 0;
+    return 1;
+  }
+  current_block_type_index = select_block_type(ctx);
+  if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
+  return {
+    c() {
+      if_block.c();
+      if_block_anchor = empty();
+    },
+    m(target, anchor) {
+      if_blocks[current_block_type_index].m(target, anchor);
+      insert(target, if_block_anchor, anchor);
+      current = true;
+    },
+    p(ctx2, [dirty]) {
+      let previous_block_index = current_block_type_index;
+      current_block_type_index = select_block_type(ctx2);
+      if (current_block_type_index === previous_block_index) {
+        if_blocks[current_block_type_index].p(ctx2, dirty);
+      } else {
+        group_outros();
+        transition_out(if_blocks[previous_block_index], 1, 1, () => {
+          if_blocks[previous_block_index] = null;
+        });
+        check_outros();
+        if_block = if_blocks[current_block_type_index];
+        if (!if_block) {
+          if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx2);
+          if_block.c();
+        } else {
+          if_block.p(ctx2, dirty);
+        }
+        transition_in(if_block, 1);
+        if_block.m(if_block_anchor.parentNode, if_block_anchor);
+      }
+    },
+    i(local) {
+      if (current) return;
+      transition_in(if_block);
+      current = true;
+    },
+    o(local) {
+      transition_out(if_block);
+      current = false;
+    },
+    d(detaching) {
+      if (detaching) {
+        detach(if_block_anchor);
+      }
+      if_blocks[current_block_type_index].d(detaching);
+    }
+  };
+}
+const s_MODAL_BACKGROUND = "#50505080";
+function instance$1($$self, $$props, $$invalidate) {
+  let { elementContent = void 0 } = $$props;
+  let { elementRoot = void 0 } = $$props;
+  let { data = {} } = $$props;
+  let { dialogComponent = void 0 } = $$props;
+  let { managedPromise = void 0 } = $$props;
+  const application = getContext("#external").application;
+  const dialogOptions = writable({});
+  setContext("#managedPromise", managedPromise);
+  setContext("#dialogOptions", dialogOptions);
+  const s_MODAL_TRANSITION = fade;
+  const s_MODAL_TRANSITION_OPTIONS = { duration: 200 };
+  let modal = void 0;
+  const appProps = {
+    // Stores any transition functions.
+    transition: void 0,
+    inTransition: void 0,
+    outTransition: void 0,
+    // Stores properties to set for options for any transitions.
+    transitionOptions: void 0,
+    inTransitionOptions: void 0,
+    outTransitionOptions: void 0,
+    // Stores any style overrides for application shell.
+    stylesApp: void 0,
+    stylesContent: void 0
+  };
+  const modalProps = {
+    // Background CSS style string.
+    background: void 0,
+    slotSeparate: void 0,
+    styles: void 0,
+    // Close modal on glasspane input.
+    closeOnInput: void 0,
+    // Stores any transition functions.
+    transition: void 0,
+    inTransition: void 0,
+    outTransition: void 0,
+    // Stores properties to set for options for any transitions.
+    transitionOptions: void 0,
+    inTransitionOptions: void 0,
+    outTransitionOptions: void 0
+  };
+  let zIndex = void 0;
+  if (modal === void 0) {
+    modal = typeof data?.modal === "boolean" ? data.modal : false;
+  }
+  if (modal) {
+    onDestroy(() => window.removeEventListener("keydown", onKeydownModal, { capture: true }));
+    onMount(() => window.addEventListener("keydown", onKeydownModal, { capture: true }));
+  } else {
+    onDestroy(() => document.removeEventListener("keydown", onKeydown));
+    onMount(() => document.addEventListener("keydown", onKeydown));
+  }
+  function onKeydown(event) {
+    if (event.code === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      application.close();
+    }
+  }
+  function onKeydownModal(event) {
+    if (event.code === "Escape") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      application.close();
+    }
+  }
+  function dialogcontent_dialogComponent_binding(value) {
+    dialogComponent = value;
+    $$invalidate(2, dialogComponent);
+  }
+  function applicationshell_elementRoot_binding(value) {
+    elementRoot = value;
+    $$invalidate(0, elementRoot);
+  }
+  function applicationshell_elementContent_binding(value) {
+    elementContent = value;
+    $$invalidate(1, elementContent);
+  }
+  const close_glasspane_handler = () => application.close();
+  function dialogcontent_dialogComponent_binding_1(value) {
+    dialogComponent = value;
+    $$invalidate(2, dialogComponent);
+  }
+  function applicationshell_elementRoot_binding_1(value) {
+    elementRoot = value;
+    $$invalidate(0, elementRoot);
+  }
+  function applicationshell_elementContent_binding_1(value) {
+    elementContent = value;
+    $$invalidate(1, elementContent);
+  }
+  $$self.$$set = ($$props2) => {
+    if ("elementContent" in $$props2) $$invalidate(1, elementContent = $$props2.elementContent);
+    if ("elementRoot" in $$props2) $$invalidate(0, elementRoot = $$props2.elementRoot);
+    if ("data" in $$props2) $$invalidate(3, data = $$props2.data);
+    if ("dialogComponent" in $$props2) $$invalidate(2, dialogComponent = $$props2.dialogComponent);
+    if ("managedPromise" in $$props2) $$invalidate(9, managedPromise = $$props2.managedPromise);
+  };
+  $$self.$$.update = () => {
+    if ($$self.$$.dirty & /*elementRoot, modal*/
+    33) {
+      if (elementRoot instanceof HTMLElement) {
+        elementRoot.setAttribute("role", "dialog");
+        if (modal) {
+          elementRoot.setAttribute("aria-modal", "true");
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data, modal, zIndex, application*/
+    312) {
+      if (isObject(data)) {
+        dialogOptions.set(klona(data));
+        const newZIndex = Number.isInteger(data.zIndex) || data.zIndex === null ? data.zIndex : modal ? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER - 1;
+        if (zIndex !== newZIndex) {
+          $$invalidate(8, zIndex = newZIndex);
+        }
+        const newDraggable = typeof data.draggable === "boolean" ? data.draggable : void 0;
+        if (newDraggable !== void 0 && application.reactive.draggable !== newDraggable) {
+          $$invalidate(4, application.reactive.draggable = newDraggable, application);
+        }
+        const newFocusAuto = typeof data.focusAuto === "boolean" ? data.focusAuto : void 0;
+        if (newFocusAuto !== void 0 && application.reactive.focusAuto !== newFocusAuto) {
+          $$invalidate(4, application.reactive.focusAuto = newFocusAuto, application);
+        }
+        const newFocusKeep = typeof data.focusKeep === "boolean" ? data.focusKeep : void 0;
+        if (newFocusKeep !== void 0 && application.reactive.focusKeep !== newFocusKeep) {
+          $$invalidate(4, application.reactive.focusKeep = newFocusKeep, application);
+        }
+        const newFocusTrap = typeof data.focusTrap === "boolean" ? data.focusTrap : void 0;
+        if (newFocusTrap !== void 0 && application.reactive.focusTrap !== newFocusTrap) {
+          $$invalidate(4, application.reactive.focusTrap = newFocusTrap, application);
+        }
+        const newMinimizable = typeof data.minimizable === "boolean" ? data.minimizable : void 0;
+        if (newMinimizable !== void 0 && application.reactive.minimizable !== newMinimizable) {
+          $$invalidate(4, application.reactive.minimizable = newMinimizable, application);
+        }
+        const newResizable = typeof data.resizable === "boolean" ? data.resizable : void 0;
+        if (newResizable !== void 0 && application.reactive.resizable !== newResizable) {
+          $$invalidate(4, application.reactive.resizable = newResizable, application);
+        }
+        const newTitle = data.title ?? "Dialog";
+        if (newTitle !== application?.options?.title) {
+          $$invalidate(4, application.reactive.title = newTitle, application);
+        }
+        if (application.position.zIndex !== zIndex) {
+          $$invalidate(4, application.position.zIndex = zIndex, application);
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data, appProps*/
+    72) {
+      if (isObject(data?.transition)) {
+        const d = data.transition;
+        if (d?.transition !== appProps.transition) {
+          $$invalidate(6, appProps.transition = d.transition, appProps);
+        }
+        if (d?.inTransition !== appProps.inTransition) {
+          $$invalidate(6, appProps.inTransition = d.inTransition, appProps);
+        }
+        if (d?.outTransition !== appProps.outTransition) {
+          $$invalidate(6, appProps.outTransition = d.outTransition, appProps);
+        }
+        if (d?.transitionOptions !== appProps.transitionOptions) {
+          $$invalidate(6, appProps.transitionOptions = d.transitionOptions, appProps);
+        }
+        if (d?.inTransitionOptions !== appProps.inTransitionOptions) {
+          $$invalidate(6, appProps.inTransitionOptions = d.inTransitionOptions, appProps);
+        }
+        if (d?.outTransitionOptions !== appProps.outTransitionOptions) {
+          $$invalidate(6, appProps.outTransitionOptions = d.outTransitionOptions, appProps);
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data, modalProps*/
+    136) {
+      {
+        const newModalBackground = typeof data?.modalOptions?.background === "string" ? data.modalOptions.background : s_MODAL_BACKGROUND;
+        if (newModalBackground !== modalProps.background) {
+          $$invalidate(7, modalProps.background = newModalBackground, modalProps);
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data, modalProps*/
+    136) {
+      {
+        const newModalSlotSeparate = typeof data?.modalOptions?.slotSeparate === "boolean" ? data.modalOptions.slotSeparate : void 0;
+        if (newModalSlotSeparate !== modalProps.slotSeparate) {
+          $$invalidate(7, modalProps.slotSeparate = newModalSlotSeparate, modalProps);
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data, modalProps*/
+    136) {
+      {
+        const newModalStyles = isObject(data?.modalOptions?.styles) ? data.modalOptions.styles : void 0;
+        if (newModalStyles !== modalProps.styles) {
+          $$invalidate(7, modalProps.styles = newModalStyles, modalProps);
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data, modalProps*/
+    136) {
+      {
+        const newModalCloseOnInput = typeof data?.modalOptions?.closeOnInput === "boolean" ? data.modalOptions.closeOnInput : void 0;
+        if (newModalCloseOnInput !== modalProps.closeOnInput) {
+          $$invalidate(7, modalProps.closeOnInput = newModalCloseOnInput, modalProps);
+        }
+      }
+    }
+    if ($$self.$$.dirty & /*data, modalProps*/
+    136) {
+      if (isObject(data?.modalOptions?.transition)) {
+        const d = data.modalOptions.transition;
+        if (d?.transition !== modalProps.transition) {
+          $$invalidate(
+            7,
+            modalProps.transition = typeof d?.transition === "function" ? d.transition : s_MODAL_TRANSITION,
+            modalProps
+          );
+        }
+        if (d?.inTransition !== modalProps.inTransition) {
+          $$invalidate(7, modalProps.inTransition = d.inTransition, modalProps);
+        }
+        if (d?.outTransition !== modalProps.outTransition) {
+          $$invalidate(7, modalProps.outTransition = d.outTransition, modalProps);
+        }
+        if (d?.transitionOptions !== modalProps.transitionOptions) {
+          $$invalidate(
+            7,
+            modalProps.transitionOptions = isObject(d?.transitionOptions) ? d.transitionOptions : s_MODAL_TRANSITION_OPTIONS,
+            modalProps
+          );
+        }
+        if (d?.inTransitionOptions !== modalProps.inTransitionOptions) {
+          $$invalidate(7, modalProps.inTransitionOptions = d.inTransitionOptions, modalProps);
+        }
+        if (d?.outTransitionOptions !== modalProps.outTransitionOptions) {
+          $$invalidate(7, modalProps.outTransitionOptions = d.outTransitionOptions, modalProps);
+        }
+      } else {
+        const newModalTransition = typeof data?.modalOptions?.transition?.transition === "function" ? data.modalOptions.transition.transition : s_MODAL_TRANSITION;
+        if (newModalTransition !== modalProps.transition) {
+          $$invalidate(7, modalProps.transition = newModalTransition, modalProps);
+        }
+        const newModalTransitionOptions = isObject(data?.modalOptions?.transitionOptions) ? data.modalOptions.transitionOptions : s_MODAL_TRANSITION_OPTIONS;
+        if (newModalTransitionOptions !== modalProps.transitionOptions) {
+          $$invalidate(7, modalProps.transitionOptions = newModalTransitionOptions, modalProps);
+        }
+      }
+    }
+  };
+  return [
+    elementRoot,
+    elementContent,
+    dialogComponent,
+    data,
+    application,
+    modal,
+    appProps,
+    modalProps,
+    zIndex,
+    managedPromise,
+    dialogcontent_dialogComponent_binding,
+    applicationshell_elementRoot_binding,
+    applicationshell_elementContent_binding,
+    close_glasspane_handler,
+    dialogcontent_dialogComponent_binding_1,
+    applicationshell_elementRoot_binding_1,
+    applicationshell_elementContent_binding_1
+  ];
+}
+class DialogShell extends SvelteComponent {
+  constructor(options) {
+    super();
+    init$1(this, options, instance$1, create_fragment$1, safe_not_equal, {
+      elementContent: 1,
+      elementRoot: 0,
+      data: 3,
+      dialogComponent: 2,
+      managedPromise: 9
+    });
+  }
+  get elementContent() {
+    return this.$$.ctx[1];
+  }
+  set elementContent(elementContent) {
+    this.$$set({ elementContent });
+    flush();
+  }
+  get elementRoot() {
+    return this.$$.ctx[0];
+  }
+  set elementRoot(elementRoot) {
+    this.$$set({ elementRoot });
+    flush();
+  }
+  get data() {
+    return this.$$.ctx[3];
+  }
+  set data(data) {
+    this.$$set({ data });
+    flush();
+  }
+  get dialogComponent() {
+    return this.$$.ctx[2];
+  }
+  set dialogComponent(dialogComponent) {
+    this.$$set({ dialogComponent });
+    flush();
+  }
+  get managedPromise() {
+    return this.$$.ctx[9];
+  }
+  set managedPromise(managedPromise) {
+    this.$$set({ managedPromise });
+    flush();
+  }
+}
 cssVariables.setProperties({
   // Anchor text shadow / header buttons
   "--tjs-default-text-shadow-focus-hover": "0 0 8px var(--color-shadow-primary)",
@@ -14645,10 +17252,10 @@ function create_default_slot(ctx) {
       p4.textContent = `${MODULE_TITLE} is sponsored by `;
       a1 = element("a");
       a1.textContent = "Round Table Games";
-      attr(main, "class", "svelte-1f5phzh");
+      attr(main, "class", "svelte-12546n4");
       attr(a1, "href", "https://www.round-table.games");
-      attr(a1, "class", "svelte-1f5phzh");
-      attr(footer, "class", "svelte-1f5phzh");
+      attr(a1, "class", "svelte-12546n4");
+      attr(footer, "class", "svelte-12546n4");
     },
     m(target, anchor) {
       insert(target, main, anchor);
@@ -15139,7 +17746,7 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
         }
         return ogSet(new_value);
       }, function wrap_update(fn) {
-        set(fn(get_store_value(ogStore)));
+        set2(fn(get_store_value(ogStore)));
       });
     }
     if (storage) {
@@ -15153,19 +17760,19 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
       storage.setItem(key, serialize(value));
     }
     const ogStore = writable(value, start ? wrap_start : void 0);
-    function set(new_value) {
+    function set2(new_value) {
       if (storage) {
         storage.setItem(key, serialize(new_value));
       }
       ogStore.set(new_value);
     }
     function update2(fn) {
-      set(fn(get_store_value(ogStore)));
+      set2(fn(get_store_value(ogStore)));
     }
     function subscribe2(run2, invalidate) {
       return ogStore.subscribe(run2, invalidate);
     }
-    return { set, update: update2, subscribe: subscribe2 };
+    return { set: set2, update: update2, subscribe: subscribe2 };
   }
   function storageDerived(key, stores, fn, initial_value) {
     const single = !Array.isArray(stores);
@@ -15176,7 +17783,7 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
       } catch (err) {
       }
     }
-    return storageReadable(key, initial_value, (set, update2) => {
+    return storageReadable(key, initial_value, (set2, update2) => {
       let inited = false;
       const values = [];
       let pending = 0;
@@ -15188,9 +17795,9 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
         cleanup?.();
         const input = single ? values[0] : values;
         if (isSimpleDeriver(fn)) {
-          set(fn(input));
+          set2(fn(input));
         } else {
-          const result = fn(input, set, update2);
+          const result = fn(input, set2, update2);
           if (typeof result === "function") {
             cleanup = result;
           }
@@ -15842,8 +18449,8 @@ class SvelteReactive {
     const storeUIState = {
       subscribe: writableUIOptions.subscribe,
       dragging: propertyStore(writableUIOptions, "dragging"),
-      headerButtons: derived(writableUIOptions, ($options, set) => set($options.headerButtons)),
-      minimized: derived(writableUIOptions, ($options, set) => set($options.minimized)),
+      headerButtons: derived(writableUIOptions, ($options, set2) => set2($options.headerButtons)),
+      minimized: derived(writableUIOptions, ($options, set2) => set2($options.minimized)),
       resizing: propertyStore(writableUIOptions, "resizing")
     };
     Object.freeze(storeUIState);
@@ -16759,6 +19366,811 @@ class SvelteApplication extends Application {
     }
   }
 }
+class ManagedPromise {
+  /** @type {boolean} */
+  static #logging = false;
+  /** @type {{ isProcessing?: boolean, promise?: Promise, reject: Function, resolve: Function }} */
+  #current;
+  /**
+   * @returns {boolean} Whether global logging is enabled.
+   */
+  static get logging() {
+    return this.#logging;
+  }
+  /**
+   * @returns {boolean} Whether there is an active managed Promise.
+   */
+  get isActive() {
+    return this.#current !== void 0;
+  }
+  /**
+   * @returns {boolean} Whether there is an active managed Promise and resolution is currently being processed.
+   */
+  get isProcessing() {
+    return this.#current !== void 0 ? this.#current.isProcessing : false;
+  }
+  /**
+   * Sets global logging enabled state.
+   *
+   * @param {boolean}  logging - New logging enabled state.
+   */
+  static set logging(logging) {
+    if (typeof logging !== "boolean") {
+      throw new TypeError(`[TRL] ManagedPromise.logging error: 'logging' is not a boolean.`);
+    }
+    this.#logging = logging;
+  }
+  // ----------------------------------------------------------------------------------------------------------------
+  /**
+   * Resolves any current Promise with undefined and creates a new current Promise.
+   *
+   * @template T
+   *
+   * @param {object} opts - Options.
+   *
+   * @param {boolean}  [opts.reuse=false] - When true if there is an existing live Promise it is returned immediately.
+   *
+   * @returns {Promise<T>} The new current managed Promise.
+   */
+  create({ reuse = false } = {}) {
+    if (typeof reuse !== "boolean") {
+      throw new TypeError(`[TRL] ManagedPromise.create error: 'reuse' is not a boolean.`);
+    }
+    if (reuse && this.#current !== void 0 && this.#current.promise instanceof Promise) {
+      if (ManagedPromise.#logging) {
+        console.warn(`[TRL] ManagedPromise.create info: Reusing / returning existing managed Promise.`);
+      }
+      return this.#current.promise;
+    }
+    if (this.#current !== void 0) {
+      if (ManagedPromise.#logging) {
+        console.warn(
+          `[TRL] ManagedPromise.create info: Creating a new Promise and resolving existing immediately.`
+        );
+      }
+      this.#current.resolve(void 0);
+      this.#current = void 0;
+    }
+    const promise2 = new Promise((resolve, reject) => {
+      this.#current = {
+        isProcessing: false,
+        reject,
+        resolve
+      };
+    });
+    this.#current.promise = promise2;
+    return promise2;
+  }
+  /**
+   * Gets the current Promise if any.
+   *
+   * @returns {Promise<any>} Current Promise.
+   */
+  get() {
+    return this.#current ? this.#current.promise : void 0;
+  }
+  /**
+   * Rejects the current Promise if applicable.
+   *
+   * @param {*}  [result] - Result to reject.
+   *
+   * @returns {boolean} Was the promise rejected.
+   */
+  reject(result = void 0) {
+    if (this.#current !== void 0 && this.#current.isProcessing) {
+      if (ManagedPromise.#logging) {
+        console.warn(`[TRL] ManagedPromise.reject info: Currently processing promise.`);
+      }
+      return true;
+    }
+    if (this.#current !== void 0) {
+      this.#current.isProcessing = true;
+      if (result instanceof Promise) {
+        result.then((value) => {
+          this.#current.reject(value);
+          this.#current = void 0;
+        }).catch((err) => {
+          this.#current.reject(err);
+          this.#current = void 0;
+        });
+      } else {
+        this.#current.reject(result);
+        this.#current = void 0;
+      }
+      return true;
+    } else {
+      if (ManagedPromise.#logging) {
+        console.warn(`[TRL] ManagedPromise.reject warning: No current managed Promise to reject.`);
+      }
+      return false;
+    }
+  }
+  /**
+   * Resolves the current Promise if applicable.
+   *
+   * @param {*}  [result] - Result to resolve.
+   *
+   * @returns {boolean} Was the promise resolved.
+   */
+  resolve(result = void 0) {
+    if (this.#current !== void 0 && this.#current.isProcessing) {
+      if (ManagedPromise.#logging) {
+        console.warn(`[TRL] ManagedPromise.resolve info: Currently processing promise.`);
+      }
+      return true;
+    }
+    if (this.#current !== void 0) {
+      if (result instanceof Promise) {
+        this.#current.isProcessing = true;
+        result.then((value) => {
+          this.#current.resolve(value);
+          this.#current = void 0;
+        }).catch((err) => {
+          this.#current.reject(err);
+          this.#current = void 0;
+        });
+      } else {
+        this.#current.resolve(result);
+        this.#current = void 0;
+      }
+      return true;
+    } else {
+      if (ManagedPromise.#logging) {
+        console.warn(`[TRL] ManagedPromise.resolve warning: No current managed Promise to resolve.`);
+      }
+      return false;
+    }
+  }
+}
+class TJSDialogData {
+  /**
+   * @type {import('../../index.js').SvelteApplication}
+   */
+  #application;
+  /**
+   * Stores the dialog options data.
+   *
+   * @type {import('./types').TJSDialogOptions}
+   */
+  #internal = {};
+  /**
+   * @param {import('../../index.js').SvelteApplication} application - The host Foundry application.
+   */
+  constructor(application) {
+    this.#application = application;
+  }
+  /**
+   * @returns {Record<string, import('./types').TJSDialogButtonData>} The dialog button configuration.
+   */
+  get buttons() {
+    return this.#internal.buttons;
+  }
+  /**
+   * Set the dialog button configuration.
+   *
+   * @param {string} buttons - New dialog button configuration.
+   */
+  set buttons(buttons) {
+    this.#internal.buttons = buttons;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {import('@typhonjs-fvtt/runtime/svelte/util').TJSSvelteConfig | string} The Svelte configuration object or HTML string
+   *          content.
+   */
+  get content() {
+    return this.#internal.content;
+  }
+  /**
+   * Set the Svelte configuration object or HTML string content.
+   *
+   * @param {import('@typhonjs-fvtt/runtime/svelte/util').TJSSvelteConfig | string} content - New Svelte configuration object or
+   *        HTML string content.
+   */
+  set content(content) {
+    this.#internal.content = content;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {string} The default button ID to focus initially.
+   */
+  get default() {
+    return this.#internal.default;
+  }
+  /**
+   * Set the default button ID to focus initially.
+   *
+   * @param {string} newDefault - New default button ID to focus initially.
+   */
+  set default(newDefault) {
+    this.#internal.default = newDefault;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} The dialog draggable state; draggable when true.
+   */
+  get draggable() {
+    return this.#internal.draggable;
+  }
+  /**
+   * Set the dialog state; draggable when true.
+   *
+   * @param {boolean} draggable - New dialog draggable state; draggable when true.
+   */
+  set draggable(draggable2) {
+    this.#internal.draggable = draggable2;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} When true auto-management of app focus is enabled.
+   */
+  get focusAuto() {
+    return this.#internal.focusAuto;
+  }
+  /**
+   * Set the dialog auto-management of app focus.
+   *
+   * @param {boolean} focusAuto - New dialog auto-management of app focus.
+   */
+  set focusAuto(focusAuto) {
+    this.#internal.focusAuto = focusAuto;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} When true the first focusable element that isn't a button is focused.
+   */
+  get focusFirst() {
+    return this.#internal.focusFirst;
+  }
+  /**
+   * Set the dialog first focusable element state.
+   *
+   * @param {boolean} focusFirst - New dialog first focusable element state.
+   */
+  set focusFirst(focusFirst) {
+    this.#internal.focusFirst = focusFirst;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} When `focusAuto` and `focusKeep` is true; keeps internal focus.
+   */
+  get focusKeep() {
+    return this.#internal.focusKeep;
+  }
+  /**
+   * Set the dialog `focusKeep` state. When `focusAuto` and `focusKeep` is true; keeps internal focus.
+   *
+   * @param {boolean} focusKeep - New dialog `focusKeep` state.
+   */
+  set focusKeep(focusKeep) {
+    this.#internal.focusKeep = focusKeep;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} When true the dialog is minimizable.
+   */
+  get minimizable() {
+    return this.#internal.minimizable;
+  }
+  /**
+   * Set the dialog `minimizable` state. When true the dialog is minimizable.
+   *
+   * @param {boolean} minimizable - New dialog `minimizable` state.
+   */
+  set minimizable(minimizable) {
+    this.#internal.minimizable = minimizable;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} When true a modal dialog is displayed.
+   */
+  get modal() {
+    return this.#internal.modal;
+  }
+  /**
+   * Set the dialog `modal` state. When true a modal dialog is displayed.
+   *
+   * @param {boolean} modal - New dialog `modal` state.
+   */
+  set modal(modal) {
+    this.#internal.modal = modal;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {import('./types').TJSDialogModalOptions} Additional options for modal dialog display.
+   */
+  get modalOptions() {
+    return this.#internal.modalOptions;
+  }
+  /**
+   * Set additional options for modal dialog display.
+   *
+   * @param {import('./types').TJSDialogModalOptions} modalOptions - New additional options for modal dialog display.
+   */
+  set modalOptions(modalOptions) {
+    this.#internal.modalOptions = modalOptions;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} When true and an error is raised in dialog callback functions post a UI error notification.
+   */
+  get notifyError() {
+    return this.#internal.notifyError;
+  }
+  /**
+   * Set the dialog `notifyError` state. When true and an error is raised in dialog callback functions post a UI error
+   * notification.
+   *
+   * @param {boolean} notifyError - New dialog `notifyError` state.
+   */
+  set notifyError(notifyError) {
+    this.#internal.notifyError = notifyError;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {string | ((application: import('../../index.js').TJSDialog) => any)} Callback invoked when dialog is
+   *          closed; no button option selected. When defined as a string any matching function by name exported from
+   *          content Svelte component is invoked.
+   */
+  get onClose() {
+    return this.#internal.onClose;
+  }
+  /**
+   * Set callback invoked when dialog is closed; no button option selected. When defined as a string any matching
+   * function by name exported from content Svelte component is invoked..
+   *
+   * @param {string | ((application: import('../../index.js').TJSDialog) => any)} onClose - New dialog `onClose` state.
+   */
+  set onClose(onClose) {
+    this.#internal.onClose = onClose;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} Dialog `rejectClose` state. When true and a Promise has been created by {@link TJSDialog.wait}
+   *          and the Promise is not in the process of being resolved or rejected on close of the dialog any `onClose`
+   *          function is invoked and any result that is undefined will cause the Promise to then be rejected..
+   */
+  get rejectClose() {
+    return this.#internal.rejectClose;
+  }
+  /**
+   * Set the dialog `rejectClose` state.
+   *
+   * @param {boolean} rejectClose - New dialog `rejectClose` state.
+   */
+  set rejectClose(rejectClose) {
+    this.#internal.rejectClose = rejectClose;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} When true the dialog is resizable.
+   */
+  get resizable() {
+    return this.#internal.resizable;
+  }
+  /**
+   * Set the dialog `resizable` state. When true the dialog is resizable.
+   *
+   * @param {boolean} resizable - New dialog `resizable` state.
+   */
+  set resizable(resizable) {
+    this.#internal.resizable = resizable;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {boolean} When true and resolving any Promises and there are undefined results from any button callbacks
+   *          the button ID is resolved.
+   */
+  get resolveId() {
+    return this.#internal.resolveId;
+  }
+  /**
+   * Set the dialog `resolveId` state. When true and resolving any Promises and there are undefined results from any
+   * button callbacks the button ID is resolved.
+   *
+   * @param {boolean} resolveId - New dialog `resolveId` state.
+   */
+  set resolveId(resolveId) {
+    this.#internal.resolveId = resolveId;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {string} The dialog window title.
+   */
+  get title() {
+    return this.#internal.title;
+  }
+  /**
+   * Set the dialog window title.
+   *
+   * @param {string} title - New dialog window title.
+   */
+  set title(title) {
+    this.#internal.title = title;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {import('./types').TJSDialogTransitionOptions} Transition options for the dialog.
+   */
+  get transition() {
+    return this.#internal.transition;
+  }
+  /**
+   * Set transition options for the dialog.
+   *
+   * @param {import('./types').TJSDialogTransitionOptions} transition - New transition options for the dialog.
+   */
+  set transition(transition) {
+    this.#internal.transition = transition;
+    this.#updateComponent();
+  }
+  /**
+   * @returns {number | null} A specific z-index for the dialog. Pass null for the dialog to act like other
+   *          applications in regard bringing to top when activated.
+   */
+  get zIndex() {
+    return this.#internal.zIndex;
+  }
+  /**
+   * Set specific z-index for the dialog.
+   *
+   * @param {number | null} zIndex - New z-index for the dialog.
+   */
+  set zIndex(zIndex) {
+    this.#internal.zIndex = zIndex;
+    this.#updateComponent();
+  }
+  /**
+   * Provides a way to safely get this dialogs data given an accessor string which describes the
+   * entries to walk. To access deeper entries into the object format the accessor string with `.` between entries
+   * to walk.
+   *
+   * @param {string}   accessor - The path / key to set. You can set multiple levels.
+   *
+   * @param {any}      [defaultValue] - A default value returned if the accessor is not found.
+   *
+   * @returns {any} Value at the accessor.
+   */
+  get(accessor, defaultValue) {
+    return safeAccess(this.#internal, accessor, defaultValue);
+  }
+  /**
+   * @param {import('./types').TJSDialogOptions} data - Merge provided data object into Dialog data.
+   */
+  merge(data) {
+    deepMerge(this.#internal, data);
+    this.#updateComponent();
+  }
+  /**
+   * Sets the dialog data; this is reactive.
+   *
+   * @param {import('./types').TJSDialogOptions}   data - Dialog data.
+   */
+  replace(data) {
+    if (!isObject(data)) {
+      throw new TypeError(`TJSDialogData replace error: 'data' is not an object'.`);
+    }
+    this.#internal = {};
+    this.merge(data);
+  }
+  /**
+   * Provides a way to safely set this dialogs data given an accessor string which describes the
+   * entries to walk. To access deeper entries into the object format the accessor string with `.` between entries
+   * to walk.
+   *
+   * Automatically the dialog data will be updated in the associated DialogShell Svelte component.
+   *
+   * @param {string}   accessor - The path / key to set. You can set multiple levels.
+   *
+   * @param {any}      value - Value to set.
+   *
+   * @returns {boolean} True if successful.
+   */
+  set(accessor, value) {
+    const success = safeSet(this.#internal, accessor, value);
+    if (success) {
+      this.#updateComponent();
+    }
+    return success;
+  }
+  /**
+   * Updates the data in the Svelte dialog component.
+   */
+  #updateComponent() {
+    const component = this.#application.svelte.component(0);
+    if (component?.data) {
+      component.data = this.#internal;
+    }
+  }
+}
+class TJSDialog extends SvelteApplication {
+  /** @type {TJSDialogData} */
+  #data;
+  /** @type {ManagedPromise} */
+  #managedPromise;
+  /**
+   * @param {import('./internal/state-dialog/types').TJSDialogOptions}           data - Dialog options.
+   *
+   * @param {import('./').SvelteApplicationOptions}   [options] - SvelteApplication options.
+   */
+  constructor(data, options = {}) {
+    super(options);
+    this.#managedPromise = new ManagedPromise();
+    this.#data = new TJSDialogData(this);
+    this.#data.replace(data);
+    Object.defineProperty(this.svelte, "dialogComponent", {
+      get: () => this.svelte?.applicationShell?.dialogComponent
+    });
+  }
+  /**
+   * Default options for TJSDialog. Provides a default width and setting `height` to `auto` to always display dialog
+   * content even if it changes. The default `DialogShell` / `svelte` options should not be changed and instead mount
+   * the dialog content component by supplying a Svelte configuration object to dialog data `content` field.
+   *
+   * @returns {import('./').SvelteApplicationOptions} Default options
+   */
+  static get defaultOptions() {
+    return deepMerge(super.defaultOptions, {
+      classes: ["dialog", "tjs-dialog"],
+      width: 400,
+      height: "auto",
+      svelte: {
+        class: DialogShell,
+        intro: true,
+        target: document.body,
+        props: function() {
+          return {
+            data: this.#data,
+            managedPromise: this.#managedPromise
+          };
+        }
+      }
+    });
+  }
+  /**
+   * Returns the dialog data.
+   *
+   * @returns {import('./internal/state-dialog/types').TJSDialogData} Dialog data.
+   */
+  get data() {
+    return this.#data;
+  }
+  /**
+   * @returns {import('@typhonjs-fvtt/runtime/util/async').ManagedPromise} Returns the managed promise.
+   */
+  get managedPromise() {
+    return this.#managedPromise;
+  }
+  /**
+   * Close the dialog and un-register references to it within UI mappings.
+   * This function returns a Promise which resolves once the window closing animation concludes.
+   *
+   * @param {object}   [options] - Optional parameters.
+   *
+   * @param {boolean}  [options.force] - Force close regardless of render state.
+   *
+   * @returns {Promise<void>} A Promise which resolves once the application is closed with the callback value or
+   *                          `true`.
+   */
+  async close(options) {
+    try {
+      if (this.#managedPromise.isActive && !this.#managedPromise.isProcessing) {
+        const result = TJSDialog.#invokeFn(this.#data.onClose, this, null);
+        const rejectClose = typeof this.#data.rejectClose === "boolean" ? this.#data.rejectClose : false;
+        if (rejectClose && result === null) {
+          this.#managedPromise.reject(new Error("TJSDialog was closed without a choice being made."));
+        } else {
+          this.#managedPromise.resolve(result);
+        }
+      }
+    } catch (err) {
+      const notifyError = typeof this.#data.notifyError === "boolean" ? this.#data.notifyError : true;
+      if (notifyError) {
+        globalThis.ui.notifications.error(err, { console: false });
+      }
+      if (!this.#managedPromise.reject(err)) {
+        throw err;
+      }
+    } finally {
+      await super.close(options);
+    }
+  }
+  /**
+   * Brings to top or renders this dialog returning a Promise that is resolved any button pressed or when the dialog
+   * is closed.
+   *
+   * Creates an anonymous data defined TJSDialog returning a Promise that can be awaited upon for the user to make a
+   * choice.
+   *
+   * Note: `null` is returned if the dialog is closed without a user making a choice.
+   *
+   * @template T
+   *
+   * @param {object}   [options] - Options.
+   *
+   * @param {boolean}  [options.reuse=false] - When true if there is an existing managed Promise this allows multiple
+   *        sources to await on the same result.
+   *
+   * @returns {Promise<T>} A promise for dialog resolution.
+   */
+  async wait(options) {
+    if (this.rendered) {
+      this.bringToTop();
+    } else {
+      this.render(true, { focus: true });
+    }
+    return this.#managedPromise.create(options);
+  }
+  // ---------------------------------------------------------------------------------------------------------------
+  /**
+   * A helper factory method to create simple confirmation dialog windows which consist of simple yes / no prompts.
+   * If you require more flexibility, a custom TJSDialog instance is preferred. The default focused button is 'yes'.
+   * You can change the default focused button by setting `default` to `yes` or `no`.
+   *
+   * @template T
+   *
+   * @param {import('./internal/state-dialog/types').TJSDialogOptions & {
+   *    onYes?: string|((application: TJSDialog) => any),
+   *    onNo?: string|((application: TJSDialog) => any)
+   * }} [data] - Confirm dialog options.
+   *
+   * @param {string|((application: TJSDialog) => any)} [data.onYes] - Callback function upon `yes`; may be an async
+   *        function. When defined as a string any matching function by name exported from content Svelte component is
+   *        invoked.
+   *
+   * @param {string|((application: TJSDialog) => any)} [data.onNo] - Callback function upon `no`; may be an async
+   *        function. When defined as a string any matching function by name exported from content Svelte component is
+   *        invoked.
+   *
+   * @param {import('./').SvelteApplicationOptions}  [options]  SvelteApplication options passed to the TJSDialog
+   *        constructor.
+   *
+   * @returns {Promise<T>} A promise which resolves with result of yes / no callbacks or true / false.
+   *
+   * @example
+   * const result = await TJSDialog.confirm({
+   *  title: 'A Yes or No Question',
+   *  content: '<p>Choose wisely.</p>',
+   *  onYes: () => 'YES Result'
+   *  onNo: () => 'NO Result'
+   * });
+   *
+   * // Logs 'YES result', 'NO Result', or null if the user closed the dialog without making a selection.
+   * console.log(result);
+   */
+  static async confirm({ onYes, onNo, ...data } = {}, options = {}) {
+    const mergedButtons = deepMerge({
+      yes: {
+        icon: "fas fa-check",
+        label: "Yes"
+      },
+      no: {
+        icon: "fas fa-times",
+        label: "No"
+      }
+    }, data.buttons ?? {});
+    return this.wait({
+      ...data,
+      buttons: deepMerge(mergedButtons, {
+        yes: {
+          onPress: (application) => this.#invokeFn(onYes, application, true)
+        },
+        no: {
+          onPress: (application) => this.#invokeFn(onNo, application, false)
+        }
+      }),
+      default: data.default ?? "yes"
+    }, options);
+  }
+  /**
+   * A helper method to invoke a callback function directly or lookup an exported function with the same name from any
+   * content Svelte component to invoke. This is used internally to apply default values for `confirm` and `prompt`.
+   *
+   * @param {string|((application: TJSDialog) => any)} callback - Callback function to invoke; may be an async
+   *        function. When defined as a string any matching function by name exported from content Svelte component is
+   *        invoked.
+   *
+   * @param {TJSDialog} application - TJSDialog instance passed to callback.
+   *
+   * @param {*} [defaultResult] - An optional default result to return; undefined if not specified.
+   *
+   * @returns {*} Result.
+   *
+   * @internal
+   */
+  static #invokeFn(callback, application, defaultResult = void 0) {
+    let result = defaultResult;
+    switch (typeof callback) {
+      case "function":
+        result = callback(application);
+        break;
+      case "string": {
+        const dialogComponent = application?.svelte?.dialogComponent;
+        if (dialogComponent !== void 0 && typeof dialogComponent?.[callback] === "function") {
+          result = dialogComponent?.[callback](application);
+        } else {
+          if (dialogComponent === void 0) {
+            console.warn(`[TRL] TJSDialog warning: 'onPress' defined as a string with no associated content Svelte component.`);
+          } else if (typeof dialogComponent?.[callback] !== "function") {
+            console.warn(`[TRL] TJSDialog warning: The content Svelte component does not contain an associated function '${callback}'. Did you remember to add '<svelte:options accessors={true} />' and export the function?`);
+          }
+        }
+        break;
+      }
+    }
+    return result;
+  }
+  /**
+   * A helper factory method to display a basic "prompt" style TJSDialog with a single button.
+   *
+   * @template T
+   *
+   * @param {import('./internal/state-dialog/types').TJSDialogOptions & {
+   *    onOk?: string|((application: TJSDialog) => any),
+   *    label?: string,
+   *    icon?: string
+   * }} [data] - Prompt dialog options that includes any TJSDialog options along with the following optional fields:
+   *
+   * @param {string|((application: TJSDialog) => any)} [data.onOk] - Callback function upon `ok`; may be an async
+   *        function. When defined as a string any matching function by name exported from content Svelte component is
+   *        invoked.
+   *
+   * @param {string}   [data.label] - The OK prompt button text.
+   *
+   * @param {string}   [data.icon="fas fa-check"] - Set another icon besides `fas fa-check` for button.
+   *
+   * @param {import('./').SvelteApplicationOptions}  [options]  SvelteApplication options passed to the TJSDialog
+   *        constructor.
+   *
+   * @returns {Promise<T>} The returned value from the provided callback function or `true` if the button
+   *          is pressed.
+   *
+   * @example
+   * const result = await TJSDialog.prompt({
+   *  title: 'Are you OK?',
+   *  content: '<p>Are you OK?.</p>',
+   *  label: 'Feeling Fine!'
+   *  onOk: () => 'OK'
+   * });
+   *
+   * // Logs 'OK' or null if the user closed the dialog without making a selection.
+   * console.log(result);
+   */
+  static async prompt({ onOk, label, icon = "fas fa-check", ...data } = {}, options = {}) {
+    return this.wait({
+      ...data,
+      buttons: {
+        ok: {
+          icon,
+          label,
+          onPress: (application) => this.#invokeFn(onOk, application, true)
+        }
+      },
+      default: "ok"
+    }, options);
+  }
+  /**
+   * Creates an anonymous data defined TJSDialog returning a Promise that can be awaited upon for the user to make a
+   * choice.
+   *
+   * Note: By default `null` is returned if the dialog is closed without a user making a choice.
+   *
+   * @template T
+   *
+   * @param {import('./internal/state-dialog/types').TJSDialogOptions}  data - Dialog data passed to the TJSDialog constructor.
+   *
+   * @param {import('./').SvelteApplicationOptions}  [options]  SvelteApplication options passed to the TJSDialog
+   *        constructor.
+   *
+   * @returns {Promise<T>} A Promise that resolves to the chosen result.
+   */
+  static async wait(data, options = {}) {
+    if (!isObject(data)) {
+      throw new TypeError(`TJSDialog.wait error: 'data' is not an object'.`);
+    }
+    return new this({ ...data }, options).wait();
+  }
+}
 Hooks.on("PopOut:loading", (app) => {
   if (app instanceof SvelteApplication) {
     app.position.enabled = false;
@@ -16811,28 +20223,769 @@ function canvasReady() {
     }
   });
 }
+function ripple({
+  duration = 600,
+  background = "rgba(255, 255, 255, 0.7)",
+  events = ["click", "keyup"],
+  keyCode = "Enter",
+  debounce
+} = {}) {
+  return (element2) => {
+    function createRipple(e) {
+      const elementRect = element2.getBoundingClientRect();
+      const diameter = Math.max(elementRect.width, elementRect.height);
+      const radius = diameter / 2;
+      const left = e.clientX ? `${e.clientX - (elementRect.left + radius)}px` : "0";
+      const top = e.clientY ? `${e.clientY - (elementRect.top + radius)}px` : "0";
+      const span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.width = `${diameter}px`;
+      span.style.height = `${diameter}px`;
+      span.style.left = left;
+      span.style.top = top;
+      span.style.background = `var(--tjs-action-ripple-background, ${background})`;
+      span.style.borderRadius = "50%";
+      span.style.pointerEvents = "none";
+      span.style.transform = "translateZ(-1px)";
+      element2.prepend(span);
+      const animation = span.animate(
+        [
+          {
+            // from
+            transform: "scale(.7)",
+            opacity: 0.5,
+            filter: "blur(2px)"
+          },
+          {
+            // to
+            transform: "scale(4)",
+            opacity: 0,
+            filter: "blur(5px)"
+          }
+        ],
+        duration
+      );
+      animation.onfinish = () => {
+        if (span && span.isConnected) {
+          span.remove();
+        }
+      };
+    }
+    function keyHandler(event) {
+      if (event?.code === keyCode) {
+        createRipple(event);
+      }
+    }
+    const eventFn = Number.isInteger(debounce) && debounce > 0 ? Timing.debounce(createRipple, debounce) : createRipple;
+    const keyEventFn = Number.isInteger(debounce) && debounce > 0 ? Timing.debounce(keyHandler, debounce) : keyHandler;
+    for (const event of events) {
+      if (["keydown", "keyup"].includes(event)) {
+        element2.addEventListener(event, keyEventFn);
+      } else {
+        element2.addEventListener(event, eventFn);
+      }
+    }
+    return {
+      destroy: () => {
+        for (const event of events) {
+          if (["keydown", "keyup"].includes(event)) {
+            element2.removeEventListener(event, keyEventFn);
+          } else {
+            element2.removeEventListener(event, eventFn);
+          }
+        }
+      }
+    };
+  };
+}
+function rippleFocus({ duration = 300, background = "rgba(255, 255, 255, 0.7)", selectors } = {}) {
+  return (element2) => {
+    const targetEl = typeof selectors === "string" ? element2.querySelector(selectors) : element2.firstChild instanceof HTMLElement ? element2.firstChild : element2;
+    let span = void 0;
+    let clientX = -1;
+    let clientY = -1;
+    function blurRipple() {
+      if (!(span instanceof HTMLElement) || document.activeElement === targetEl) {
+        return;
+      }
+      const animation = span.animate(
+        [
+          {
+            // from
+            transform: "scale(3)",
+            opacity: 0.3
+          },
+          {
+            // to
+            transform: "scale(.7)",
+            opacity: 0
+          }
+        ],
+        {
+          duration,
+          fill: "forwards"
+        }
+      );
+      animation.onfinish = () => {
+        clientX = clientY = -1;
+        if (span && span.isConnected) {
+          span.remove();
+        }
+        span = void 0;
+      };
+    }
+    function focusRipple() {
+      if (span instanceof HTMLElement) {
+        return;
+      }
+      const elementRect = element2.getBoundingClientRect();
+      const actualX = clientX >= 0 ? clientX : elementRect.left + elementRect.width / 2;
+      const actualY = clientX >= 0 ? clientY : elementRect.top + elementRect.height / 2;
+      const diameter = Math.max(elementRect.width, elementRect.height);
+      const radius = diameter / 2;
+      const left = `${actualX - (elementRect.left + radius)}px`;
+      const top = `${actualY - (elementRect.top + radius)}px`;
+      span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.width = `${diameter}px`;
+      span.style.height = `${diameter}px`;
+      span.style.left = left;
+      span.style.top = top;
+      span.style.background = `var(--tjs-action-ripple-background-focus, var(--tjs-action-ripple-background, ${background}))`;
+      span.style.borderRadius = "50%";
+      span.style.pointerEvents = "none";
+      span.style.transform = "translateZ(-1px)";
+      element2.prepend(span);
+      span.animate(
+        [
+          {
+            // from
+            transform: "scale(.7)",
+            opacity: 0.5
+          },
+          {
+            // to
+            transform: "scale(3)",
+            opacity: 0.3
+          }
+        ],
+        {
+          duration,
+          fill: "forwards"
+        }
+      );
+    }
+    function onPointerDown(e) {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    targetEl.addEventListener("pointerdown", onPointerDown);
+    targetEl.addEventListener("blur", blurRipple);
+    targetEl.addEventListener("focus", focusRipple);
+    return {
+      destroy: () => {
+        targetEl.removeEventListener("pointerdown", onPointerDown);
+        targetEl.removeEventListener("blur", blurRipple);
+        targetEl.removeEventListener("focus", focusRipple);
+      }
+    };
+  };
+}
+class UIControl {
+  /** @type {import('./types').TJSSettingsCustomSection[]} */
+  #sections = [];
+  /** @type {import('./').TJSGameSettings} */
+  #settings;
+  /** @type {boolean} */
+  #showSettings = false;
+  /** @type {Function} */
+  #showSettingsSet;
+  /** @type {{showSettings: import('svelte/store').Readable<boolean>}} */
+  #stores;
+  /**
+   * @param {import('./').TJSGameSettings}   settings -
+   */
+  constructor(settings) {
+    this.#settings = settings;
+    const showSettings = writable(this.#showSettings);
+    this.#showSettingsSet = showSettings.set;
+    this.#stores = {
+      showSettings: { subscribe: showSettings.subscribe }
+    };
+    Object.freeze(this.#stores);
+  }
+  /**
+   * @returns {boolean} Current `showSettings` state.
+   */
+  get showSettings() {
+    return this.#showSettings;
+  }
+  /**
+   * @returns {{ showSettings: import('svelte/store').Readable<boolean> }} Returns the managed stores.
+   */
+  get stores() {
+    return this.#stores;
+  }
+  /**
+   * Sets current `showSettings` state.
+   *
+   * @param {boolean}  showSettings - New `showSettings` state.
+   */
+  set showSettings(showSettings) {
+    this.#showSettings = showSettings;
+    this.#showSettingsSet(this.#showSettings);
+  }
+  /**
+   * Adds a custom section / folder defined by the provided TJSSettingsCustomSection options object.
+   *
+   * @param {import('./types').TJSSettingsCustomSection} options - The configuration object for the custom section.
+   */
+  addSection(options) {
+    if (!isObject(options)) {
+      throw new TypeError(`'options' is not an object.`);
+    }
+    if (!isSvelteComponent(options.class)) {
+      throw new TypeError(`'options.class' is not a Svelte component.`);
+    }
+    if (options.props !== void 0 && !isObject(options.props)) {
+      throw new TypeError(`'options.props' is not an object.`);
+    }
+    if (options.folder !== void 0) {
+      const folder = options.folder;
+      if (typeof folder !== "string" && !isObject(folder)) {
+        throw new TypeError(`'options.folder' is not a string or object.`);
+      }
+      if (isObject(folder)) {
+        if (typeof folder.label !== "string") {
+          throw new TypeError(`'options.folder.label' is not a string.`);
+        }
+        if (folder.summaryEnd !== void 0) {
+          if (!isObject(folder.summaryEnd)) {
+            throw new TypeError(`'options.folder.summaryEnd' is not an object.`);
+          }
+          if (!isSvelteComponent(folder.summaryEnd.class)) {
+            throw new TypeError(`'options.folder.summaryEnd.class' is not a Svelte component.`);
+          }
+          if (folder.summaryEnd.props !== void 0 && !isObject(folder.summaryEnd.props)) {
+            throw new TypeError(`'options.folder.summaryEnd.props' is not an object.`);
+          }
+        }
+        if (folder.styles !== void 0 && !isObject(folder.styles)) {
+          throw new TypeError(`'options.folder.styles' is not an object.`);
+        }
+      }
+    }
+    if (options.styles !== void 0 && !isObject(options.styles)) {
+      throw new TypeError(`'options.styles' is not an object.`);
+    }
+    this.#sections.push(options);
+  }
+  /**
+   * Creates the UISettingsData object by parsing stored settings in
+   *
+   * @param {import('./types').TJSSettingsCreateOptions} [options] - Optional parameters.
+   *
+   * @returns {import('./types').TJSSettingsUIData} Parsed UI settings data.
+   */
+  create(options) {
+    const settings = this.#parseSettings(options);
+    const destroy = () => this.#destroy(settings);
+    return {
+      ...settings,
+      destroy
+    };
+  }
+  /**
+   * Destroy callback. Checks for any `requiresReload` parameter in each setting comparing against initial value
+   * when `settings` is created and current value. If there is a difference then show a modal dialog asking the user
+   * if they want to reload for those settings to take effect.
+   *
+   * @param {import('./types').TJSSettingsUIData}   settings - The UI data object initiated w/ `create`.
+   */
+  #destroy(settings) {
+    let requiresClientReload = false;
+    let requiresWorldReload = false;
+    if (Array.isArray(settings.topLevel)) {
+      for (const setting of settings.topLevel) {
+        const current = globalThis.game.settings.get(setting.namespace, setting.key);
+        if (current === setting.initialValue) {
+          continue;
+        }
+        requiresClientReload ||= setting.scope === "client" && setting.requiresReload;
+        requiresWorldReload ||= setting.scope === "world" && setting.requiresReload;
+      }
+    }
+    if (Array.isArray(settings.folders)) {
+      for (const folder of settings.folders) {
+        if (Array.isArray(folder.settings)) {
+          for (const setting of folder.settings) {
+            const current = globalThis.game.settings.get(setting.namespace, setting.key);
+            if (current === setting.initialValue) {
+              continue;
+            }
+            requiresClientReload ||= setting.scope === "client" && setting.requiresReload;
+            requiresWorldReload ||= setting.scope === "world" && setting.requiresReload;
+          }
+        }
+      }
+    }
+    if (requiresClientReload || requiresWorldReload) {
+      this.#reloadConfirm({ world: requiresWorldReload });
+    }
+    this.#showSettings = false;
+    this.#showSettingsSet(this.#showSettings);
+  }
+  /**
+   * @param {import('./types').TJSSettingsCreateOptions} [options] - Optional parameters.
+   *
+   * @returns {import('./types').TJSSettingsUIData} Parsed UI settings data.
+   */
+  #parseSettings({ efx = "ripple", storage } = {}) {
+    const namespace = this.#settings.namespace;
+    if (storage && typeof namespace !== "string") {
+      console.warn(
+        `TJSGameSettings warning: 'options.storage' defined, but 'namespace' not defined in TJSGameSettings.`
+      );
+    }
+    const hasStorage = storage && typeof namespace === "string";
+    const uiSettings = [];
+    const canConfigure = globalThis.game.user.can("SETTINGS_MODIFY");
+    for (const setting of this.#settings) {
+      if (!setting.config || !canConfigure && setting.scope !== "client") {
+        continue;
+      }
+      let options;
+      if (isObject(setting.choices)) {
+        options = Object.entries(setting.choices).map((entry) => ({ value: entry[0], label: localize(entry[1]) }));
+      }
+      let range;
+      if (isObject(setting.range)) {
+        range = {};
+        if (typeof setting.range.min !== "number") {
+          throw new TypeError(`Setting 'range.min' is not a number.`);
+        }
+        if (typeof setting.range.max !== "number") {
+          throw new TypeError(`Setting 'range.max' is not a number.`);
+        }
+        if (setting.range.step !== void 0 && typeof setting.range.step !== "number") {
+          throw new TypeError(`Setting 'range.step' is not a number.`);
+        }
+        range.min = setting.range.min;
+        range.max = setting.range.max;
+        range.step = setting.range.step ? setting.range.step : 1;
+      }
+      const type = setting.type instanceof Function ? setting.type.name : "String";
+      let filePicker;
+      if (type === "String") {
+        filePicker = setting.filePicker === true ? "any" : setting.filePicker;
+      }
+      let buttonData;
+      if (filePicker) {
+        buttonData = {
+          icon: "fas fa-file-import fa-fw",
+          efx: efx === "ripple" ? ripple() : void 0,
+          title: "FILES.BrowseTooltip",
+          styles: { "margin-left": "0.25em" }
+        };
+      }
+      const store = this.#settings.getStore(setting.key);
+      let selectData;
+      let componentType = "text";
+      if (setting.type === Boolean) {
+        componentType = "checkbox";
+      } else if (options !== void 0) {
+        componentType = "select";
+        selectData = {
+          store,
+          efx: efx === "ripple" ? rippleFocus() : void 0,
+          type: componentType,
+          options
+        };
+      } else if (setting.type === Number) {
+        componentType = isObject(setting.range) ? "range" : "number";
+      }
+      let inputData;
+      if (componentType === "text" || componentType === "number") {
+        inputData = {
+          store,
+          efx: efx === "ripple" ? rippleFocus() : void 0,
+          type: componentType
+        };
+      }
+      uiSettings.push({
+        id: `${setting.namespace}.${setting.key}`,
+        namespace: setting.namespace,
+        folder: setting.folder,
+        key: setting.key,
+        name: localize(setting.name),
+        hint: localize(setting.hint),
+        type,
+        componentType,
+        filePicker,
+        range,
+        store,
+        initialValue: globalThis.game.settings.get(setting.namespace, setting.key),
+        scope: setting.scope,
+        requiresReload: typeof setting.requiresReload === "boolean" ? setting.requiresReload : false,
+        buttonData,
+        inputData,
+        selectData
+      });
+    }
+    const storeScrollbar = hasStorage ? storage.getStore(`${namespace}-settings-scrollbar`) : writable(0);
+    const topLevel = [];
+    const folderData = {};
+    for (const setting of uiSettings) {
+      if (typeof setting.folder === "string") {
+        const folderName = localize(setting.folder);
+        if (!Array.isArray(folderData[folderName])) {
+          folderData[folderName] = [];
+        }
+        folderData[folderName].push(setting);
+      } else {
+        topLevel.push(setting);
+      }
+    }
+    const folders = Object.entries(folderData).map((entry) => {
+      return {
+        label: entry[0],
+        store: hasStorage ? storage.getStore(`${namespace}-settings-folder-${entry[0]}`) : void 0,
+        settings: entry[1]
+      };
+    });
+    const sections = [];
+    for (const section of this.#sections) {
+      const parsedSection = {
+        class: section.class,
+        props: section.props,
+        styles: section.styles
+      };
+      if (typeof section.folder === "string") {
+        const label = localize(section.folder);
+        parsedSection.folder = {
+          label,
+          store: hasStorage ? storage.getStore(`${namespace}-settings-folder-${label}`) : void 0
+        };
+      } else if (isObject(section.folder)) {
+        const label = localize(section.folder.label);
+        parsedSection.folder = {
+          label,
+          store: hasStorage ? storage.getStore(`${namespace}-settings-folder-${label}`) : void 0,
+          summaryEnd: section.folder.summaryEnd,
+          styles: section.folder.styles
+        };
+      }
+      sections.push(parsedSection);
+    }
+    return {
+      storeScrollbar,
+      topLevel,
+      folders,
+      sections
+    };
+  }
+  async #reloadConfirm({ world = false } = {}) {
+    let title = localize("SETTINGS.ReloadPromptTitle");
+    let label = localize("SETTINGS.ReloadPromptBody");
+    title = title !== "SETTINGS.ReloadPromptTitle" ? title : "Reload Application?";
+    label = label !== "SETTINGS.ReloadPromptBody" ? label : "Some of the changed settings require a reload of the application to take effect. Would you like to reload now?";
+    const reload = await TJSDialog.confirm({
+      modal: true,
+      draggable: false,
+      title,
+      content: `<p>${label}</p>`
+    });
+    if (!reload) {
+      return;
+    }
+    if (world && globalThis.game.user.isGM) {
+      globalThis.game.socket.emit("reload");
+    }
+    window.location.reload();
+  }
+  /**
+   * Convenience method to swap `showSettings`.
+   *
+   * @returns {boolean} New `showSettings` state.
+   */
+  swapShowSettings() {
+    this.#showSettings = !this.#showSettings;
+    this.#showSettingsSet(this.#showSettings);
+    return this.#showSettings;
+  }
+}
+class TJSGameSettings {
+  /** @type {string} */
+  #namespace;
+  /** @type {GameSettingData[]} */
+  #settings = [];
+  /**
+   * @type {Map<string, import('svelte/store').Writable>}
+   */
+  #stores = /* @__PURE__ */ new Map();
+  /** @type {import('./types').UIControl} */
+  #uiControl;
+  /**
+   * Creates the TJSGameSettings instance.
+   *
+   * @param {string}   namespace - The namespace for all settings.
+   */
+  constructor(namespace) {
+    if (typeof namespace !== "string") {
+      throw new TypeError(`'namespace' is not a string.`);
+    }
+    this.#namespace = namespace;
+    this.#uiControl = new UIControl(this);
+  }
+  /**
+   * Creates a new writable for the given key.
+   *
+   * @param {*}  initialValue - An initial value to set to new stores.
+   *
+   * @returns {import('svelte/store').Writable} The new writable.
+   */
+  static #createStore(initialValue) {
+    return writable(initialValue);
+  }
+  /**
+   * Provides an iterator / generator to return stored settings data.
+   *
+   * @returns {IterableIterator<GameSettingData>} An iterator of all game setting data.
+   * @yields {GameSettingData}
+   */
+  *[Symbol.iterator]() {
+    for (const setting of this.#settings) {
+      yield setting;
+    }
+  }
+  /**
+   * @returns {string} Returns namespace set in constructor.
+   */
+  get namespace() {
+    return this.#namespace;
+  }
+  /**
+   * @returns {import('./types').UIControl} The associated UIControl.
+   */
+  get uiControl() {
+    return this.#uiControl;
+  }
+  /**
+   * Gets a store from the `stores` Map or creates a new store for the key.
+   *
+   * @param {string}   key - Key to lookup in stores map.
+   *
+   * @param {string}   [initialValue] - An initial value to set to new stores.
+   *
+   * @returns {import('svelte/store').Writable} The store for the given key.
+   */
+  #getStore(key, initialValue) {
+    let store = this.#stores.get(key);
+    if (store === void 0) {
+      store = TJSGameSettings.#createStore(initialValue);
+      this.#stores.set(key, store);
+    }
+    return store;
+  }
+  /**
+   * Returns a readable Game Settings store for the associated key.
+   *
+   * @param {string}   key - Game setting key.
+   *
+   * @returns {import('svelte/store').Readable | undefined} The associated store for the given game setting key.
+   */
+  getReadableStore(key) {
+    if (!this.#stores.has(key)) {
+      console.warn(`TJSGameSettings - getReadableStore: '${key}' is not a registered setting.`);
+      return;
+    }
+    const store = this.#getStore(key);
+    return { subscribe: store.subscribe };
+  }
+  /**
+   * Returns a writable Game Settings store for the associated key.
+   *
+   * @param {string}   key - Game setting key.
+   *
+   * @returns {import('svelte/store').Writable | undefined} The associated store for the given game setting key.
+   */
+  getStore(key) {
+    return this.getWritableStore(key);
+  }
+  /**
+   * Returns a writable Game Settings store for the associated key.
+   *
+   * @param {string}   key - Game setting key.
+   *
+   * @returns {import('svelte/store').Writable | undefined} The associated store for the given game setting key.
+   */
+  getWritableStore(key) {
+    if (!this.#stores.has(key)) {
+      console.warn(`TJSGameSettings - getWritableStore: '${key}' is not a registered setting.`);
+      return;
+    }
+    return this.#getStore(key);
+  }
+  /**
+   * Registers a setting with TJSGameSettings and Foundry core.
+   *
+   * Note: The specific store subscription handler assigned to the passed in store or store created for the setting
+   * internally is returned from this function. In some cases when setting up custom stores particularly of object
+   * types with several child property stores (`propertyStore`) it is necessary to only update the setting store and
+   * not all subscribers to the custom store as the `propertyStore` instances are also subscribers to the custom store.
+   *
+   * This allows the custom store in the `set` implementation to mainly only trigger the TJSGameSettings subscriber
+   * handler on updates and not all the connected `propertyStore` instances.
+   *
+   * @param {GameSetting} setting - A GameSetting instance to set to Foundry game settings.
+   *
+   * @param {boolean}     coreConfig - When false this overrides the `setting.options.config` parameter when
+   *                                   registering the setting with Foundry. This allows the settings to be displayed
+   *                                   in the app itself, but removed from the standard Foundry configuration location.
+   *
+   * @returns {Function} The specific store subscription handler assigned to the passed in store.
+   */
+  register(setting, coreConfig = true) {
+    if (!isObject(setting)) {
+      throw new TypeError(`TJSGameSettings - register: setting is not an object.`);
+    }
+    if (!isObject(setting.options)) {
+      throw new TypeError(`TJSGameSettings - register: 'setting.options' attribute is not an object.`);
+    }
+    if (typeof coreConfig !== "boolean") {
+      throw new TypeError(`TJSGameSettings - register: 'coreConfig' is not an boolean.`);
+    }
+    if (setting.store !== void 0 && !isWritableStore(setting.store)) {
+      throw new TypeError(
+        `TJSGameSettings - register: 'setting.store' attribute is not a writable store.`
+      );
+    }
+    const namespace = setting.namespace;
+    const key = setting.key;
+    const folder = setting.folder;
+    const foundryConfig = coreConfig ? setting.options.config : false;
+    if (typeof namespace !== "string") {
+      throw new TypeError(`TJSGameSettings - register: 'namespace' attribute is not a string.`);
+    }
+    if (typeof key !== "string") {
+      throw new TypeError(`TJSGameSettings - register: 'key' attribute is not a string.`);
+    }
+    if (folder !== void 0 && typeof folder !== "string") {
+      throw new TypeError(`TJSGameSettings - register: 'folder' attribute is not a string.`);
+    }
+    const store = setting.store;
+    const options = setting.options;
+    const onchangeFunctions = [];
+    let gateSet = false;
+    onchangeFunctions.push((value) => {
+      const callbackStore = this.#getStore(key);
+      if (callbackStore && !gateSet) {
+        gateSet = true;
+        callbackStore.set(value);
+        gateSet = false;
+      }
+    });
+    if (isIterable(options?.onChange)) {
+      for (const entry of options.onChange) {
+        if (typeof entry === "function") {
+          onchangeFunctions.push(entry);
+        }
+      }
+    } else if (typeof options.onChange === "function") {
+      onchangeFunctions.push(options.onChange);
+    }
+    const onChange = (value) => {
+      for (const entry of onchangeFunctions) {
+        entry(value);
+      }
+    };
+    globalThis.game.settings.register(namespace, key, { ...options, config: foundryConfig, onChange });
+    const targetStore = store ? store : this.#getStore(key, globalThis.game.settings.get(namespace, key));
+    if (store) {
+      this.#stores.set(key, targetStore);
+      store.set(globalThis.game.settings.get(namespace, key));
+    }
+    const storeHandler = async (value) => {
+      if (!gateSet && globalThis.game.settings.get(namespace, key) !== value) {
+        gateSet = true;
+        await globalThis.game.settings.set(namespace, key, value);
+      }
+      gateSet = false;
+    };
+    subscribeIgnoreFirst(targetStore, storeHandler);
+    this.#settings.push({
+      namespace,
+      key,
+      folder,
+      ...options
+    });
+    return storeHandler;
+  }
+  /**
+   * Registers multiple settings.
+   *
+   * Please refer to the note in {@link TJSGameSettings.register} about the returned object of store subscriber handler
+   * functions.
+   *
+   * @param {Iterable<GameSetting>} settings - An iterable list of game setting configurations to register.
+   *
+   * @param {boolean}     coreConfig - When false this overrides the `setting.options.config` parameter when
+   *                                   registering the setting with Foundry. This allows the settings to be displayed
+   *                                   in the app itself, but removed from the standard Foundry configuration location.
+   *
+   * @returns { {[key: string]: Function} } An object containing all TJSGameSetting store subscriber handlers for each
+   *          setting `key` added.
+   */
+  registerAll(settings, coreConfig) {
+    const storeHandlers = {};
+    if (!isIterable(settings)) {
+      throw new TypeError(`TJSGameSettings - registerAll: settings is not iterable.`);
+    }
+    for (const entry of settings) {
+      if (!isObject(entry)) {
+        throw new TypeError(`TJSGameSettings - registerAll: entry in settings is not an object.`);
+      }
+      if (typeof entry.namespace !== "string") {
+        throw new TypeError(`TJSGameSettings - registerAll: entry in settings missing 'namespace' attribute.`);
+      }
+      if (typeof entry.key !== "string") {
+        throw new TypeError(`TJSGameSettings - registerAll: entry in settings missing 'key' attribute.`);
+      }
+      if (!isObject(entry.options)) {
+        throw new TypeError(`TJSGameSettings - registerAll: entry in settings missing 'options' attribute.`);
+      }
+      storeHandlers[entry.key] = this.register(entry, coreConfig);
+    }
+    return storeHandlers;
+  }
+}
+const gameSettings = new TJSGameSettings(MODULE_ID);
 function registerSettings(app) {
   game.system.log.i(`Building ${MODULE_ID} settings`);
   dontShowWelcome();
   combatStartSound();
 }
 function dontShowWelcome() {
-  game.settings.register(MODULE_ID, "dontShowWelcome", {
-    name: game.i18n.localize(`${MODULE_ID}.Setting.DontShowWelcome.Name`),
-    hint: game.i18n.localize(`${MODULE_ID}.Setting.DontShowWelcome.Hint`),
-    scope: "user",
-    config: true,
-    default: false,
-    type: Boolean
+  gameSettings.register({
+    namespace: MODULE_ID,
+    key: "dontShowWelcome",
+    options: {
+      name: localize$1("Setting.DontShowWelcome.Name"),
+      hint: localize$1("Setting.DontShowWelcome.Hint"),
+      scope: "user",
+      config: true,
+      default: false,
+      type: Boolean
+    }
   });
 }
 function combatStartSound() {
-  game.settings.register({
+  gameSettings.register({
     namespace: MODULE_ID,
     key: "combatStartSound",
     options: {
-      name: localize("Setting.combatStartSound.Name"),
-      hint: localize("Setting.combatStartSound.Hint"),
+      name: localize$1("Setting.combatStartSound.Name"),
+      hint: localize$1("Setting.combatStartSound.Hint"),
       scope: "user",
       config: true,
       default: "sounds/drums.wav",
@@ -16934,6 +21087,7 @@ function onAbilityUse() {
   });
 }
 CONFIG.Combat.documentClass = FFCombat;
+CONFIG.Actor.documentClass = FFXIVActor;
 CONFIG.FFXIV.RollGuards = RollGuards;
 CONFIG.FFXIV.EffectManager = EffectManager;
 CONFIG.FFXIV.RollCalcActor = RollCalcActor;

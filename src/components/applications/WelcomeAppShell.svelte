@@ -37,8 +37,11 @@
       p Current version: {version}
       p
     footer
-      p {MODULE_TITLE} is sponsored by 
-      a(href="https://www.round-table.games") Round Table Games
+      .flex2.right
+        img.pt-sm.white(src="/systems/foundryvtt-final-fantasy/assets/round-table-games-logo.svg" alt="Round Table Games Logo" height="50" width="50" style="fill: white; border: none; width: auto;")
+      .flex2.left.pt-sm
+        h4 {MODULE_TITLE} 
+        a(href="https://www.round-table.games") Round Table Games ©2025
 
 </template>
 
@@ -49,7 +52,15 @@
     overflow-y: auto
     margin-bottom: 5em
 
+
+  .white
+    filter: invert(1)
+    
   footer
+    border-top: 8px ridge var(--border-shadow)
+    display: grid
+    grid-column-gap: 1rem
+    grid-template-columns: 1fr 1.5fr
     position: fixed
     bottom: 0
     left: 0
@@ -59,6 +70,9 @@
     text-align: center
     padding: 1em
     font-size: 0.8em
+    z-index: 3
+    img
+      min-width: 70px
     a
       color: white
       text-decoration: underline
