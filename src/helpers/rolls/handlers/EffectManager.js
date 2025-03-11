@@ -4,11 +4,12 @@ import AbilitiesLimiter from "~/src/helpers/effects/AbilitiesLimiter";
 /**
  * Handles all effect-related operations
  */
-export default class EffectManager {
+export default class EffectManager extends CONFIG.FFXIV.EffectManager {
   /**
    * @param {Actor} actor - The actor this handler is for
    */
   constructor(actor) {
+    super();
     this.actor = actor;
     this.DefaultChatHandler = new DefaultChatHandler(actor);
   }

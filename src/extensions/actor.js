@@ -1,5 +1,5 @@
 import { activeEffectModes, SYSTEM_ID, ACTIVE_EFFECT_MODES } from "~/src/helpers/constants"
-import * as effectProcessors from '../helpers/effects/index.js';
+import effectProcessors from '../helpers/effects/index.js';
 
 const BaseFFActor = eval("CONFIG?.Actor?.documentClass") || class {};
 
@@ -171,6 +171,7 @@ export default class FFXIVActor extends BaseFFActor {
    */
   async _processEffectHooks(effect) {
     game.system.log.g("[PROCESS EFFECT HOOKS] Processing effect:", effect);
+    game.system.log.g("[PROCESS EFFECT HOOKS] effectProcessors:", effectProcessors);
 
     for (const change of effect.changes) {
       const matchingMode = activeEffectModes.find(e => e.value === change.mode);
