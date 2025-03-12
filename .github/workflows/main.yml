@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
 
+
+# Add permissions for the workflow
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest

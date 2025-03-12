@@ -42,6 +42,7 @@
   "scripts": {
     "dev": " > style.css; /* blank the style.css to enable HMR for css in dev */; vite;",
     "build": "vite build",
-    "eslint": "eslint ."
+    "eslint": "eslint .",
+    "release": "node scripts/release.js"
   }
 }
