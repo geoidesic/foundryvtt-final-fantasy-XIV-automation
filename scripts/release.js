@@ -83,16 +83,30 @@ const callOllama = async (commitMessages) => {
 const generateReleaseNotesWithFallback = async (previousTag) => {
     let commitMessages = [];
     try {
-        // Adjust Git log command to include merges if necessary and ensure commits are captured
-        let range = previousTag ? `${previousTag}..HEAD` : '';
-        const gitLogCommand = range
+        // Fetch commits since the previous tag
+        let range = previousTag ? `${previousTag}..HEAD^` : ''; // Use HEAD^ to exclude the release commit
+        let gitLogCommand = range
             ? `git log ${range} --pretty=format:"%s"`
             : `git log --pretty=format:"%s" -n 50`;
-        const logOutput = execSync(gitLogCommand).toString().trim();
-        commitMessages = logOutput ? logOutput.split('\n').filter(msg => !msg.startsWith('Release v')) : [];
-        
+        let logOutput = execSync(gitLogCommand).toString().trim();
+        commitMessages = logOutput
+            ? logOutput.split('\n').filter(msg => msg && !msg.match(/^Release v\d+\.\d+\.\d+$/))
+            : [];
+
+        // If no commits found in the range, fall back to the last 10 commits
+        if (commitMessages.length === 0 && !range) {
+            console.log('No commits found in range, falling back to last 10 commits.');
+            gitLogCommand = `git log --pretty=format:"%s" -n 10`;
+            logOutput = execSync(gitLogCommand).toString().trim();
+            commitMessages = logOutput
+                ? logOutput.split('\n').filter(msg => msg && !msg.match(/^Release v\d+\.\d+\.\d+$/))
+                : [];
+        }
+
+        console.log('Commits to summarize:', commitMessages);
+
         if (commitMessages.length === 0) {
-            console.log('No new commits found since the last tag.');
+            console.log('No new commits found to summarize.');
             return '## Release Notes\n\nNo significant changes in this release.';
         }
 
@@ -145,16 +159,16 @@ fs.writeFileSync(moduleJsonPath, JSON.stringify(moduleJson, null, 2));
 execSync('git add .');
 execSync(`git commit -m "Release v${newVersion}"`);
 
+// Generate release notes *before* creating the tag
+const previousTag = getPreviousTag();
+const releaseNotes = await generateReleaseNotesWithFallback(previousTag);
+
 // Create tag
 execSync(`git tag -a v${newVersion} -m "Release version ${newVersion}"`);
 
 // Push changes and tag
 execSync('git push origin main');
 execSync(`git push origin v${newVersion}`);
-
-// Generate release notes
-const previousTag = getPreviousTag();
-const releaseNotes = await generateReleaseNotesWithFallback(previousTag);
 
 // Create a temporary file for release notes
 const releaseNotesPath = path.join(__dirname, '../release-notes.md');
