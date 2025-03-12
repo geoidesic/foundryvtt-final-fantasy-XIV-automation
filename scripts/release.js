@@ -52,6 +52,17 @@ const incrementVersion = (version, type) => {
     return parts.join('.');
 };
 
+// Function to check if Ollama is running
+const checkOllamaStatus = async () => {
+    try {
+        const response = await fetch('http://127.0.0.1:11434/', { method: 'GET', timeout: 5000 });
+        return response.ok;
+    } catch (error) {
+        console.error('Ollama server is not running or unreachable:', error.message);
+        return false;
+    }
+};
+
 // Function to call Ollama for summarization
 const callOllama = async (commitMessages) => {
     try {
@@ -63,18 +74,20 @@ const callOllama = async (commitMessages) => {
             model: 'qwen2.5:7b',
             prompt: prompt,
             max_tokens: 150,
-            temperature: 0.7
+            temperature: 0.7,
+            stream: false // Ensure non-streaming response for simplicity
         };
-        const response = await fetch('http://localhost:11434/v1/completions', {
+        const response = await fetch('http://127.0.0.1:11434/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            timeout: 30000 // 30-second timeout
         });
-        if (!response.ok) throw new Error(`Ollama error: ${response.statusText}`);
+        if (!response.ok) throw new Error(`Ollama error: ${response.status} - ${await response.text()}`);
         const data = await response.json();
-        return data.choices[0].text.trim();
+        return data.response.trim();
     } catch (error) {
-        console.error('Error calling Ollama:', error);
+        console.error('Error calling Ollama:', error.message);
         return null;
     }
 };
@@ -108,6 +121,13 @@ const generateReleaseNotesWithFallback = async (previousTag) => {
         if (commitMessages.length === 0) {
             console.log('No new commits found to summarize.');
             return '## Release Notes\n\nNo significant changes in this release.';
+        }
+
+        // Check if Ollama is running before calling it
+        const ollamaRunning = await checkOllamaStatus();
+        if (!ollamaRunning) {
+            console.warn('Ollama server is not running or unreachable. Falling back to raw commit list.');
+            return generateReleaseNotes(commitMessages);
         }
 
         const aiSummary = await callOllama(commitMessages);
