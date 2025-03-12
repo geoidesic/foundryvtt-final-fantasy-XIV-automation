@@ -52,6 +52,10 @@ const incrementVersion = (version, type) => {
     return parts.join('.');
 };
 
+// Add this line to run yarn build before versioning
+execSync('yarn build', { stdio: 'inherit' }); // Run yarn build
+
+
 // Function to check if Ollama is running
 const checkOllamaStatus = async () => {
     try {
