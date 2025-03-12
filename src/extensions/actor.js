@@ -1,7 +1,7 @@
 import { activeEffectModes, SYSTEM_ID, ACTIVE_EFFECT_MODES } from "~/src/helpers/constants"
 import effectProcessors from '../helpers/effects/index.js';
 
-const BaseFFActor = eval("CONFIG?.Actor?.documentClass") || class {};
+const BaseFFActor = (CONFIG && CONFIG.Combat && CONFIG.Actor.documentClass) || class {};
 
 
 /**

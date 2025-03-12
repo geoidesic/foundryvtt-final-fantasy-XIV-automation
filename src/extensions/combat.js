@@ -1,5 +1,5 @@
 import { resetActionState, resetUses } from '~/src/helpers/util.js';
-const BaseFFCombat = eval("CONFIG?.Combat?.documentClass") || class {};
+const BaseFFCombat = (CONFIG && CONFIG.Combat && CONFIG.Combat.documentClass) || class {};
 
 /**
  * Extended Combat class for Final Fantasy system
