@@ -17231,7 +17231,9 @@ function create_default_slot(ctx) {
   let t5;
   let p3;
   let footer;
-  let p4;
+  let div0;
+  let div1;
+  let h4;
   let a1;
   return {
     c() {
@@ -17248,14 +17250,19 @@ function create_default_slot(ctx) {
       );
       p3 = element("p");
       footer = element("footer");
-      p4 = element("p");
-      p4.textContent = `${MODULE_TITLE} is sponsored by `;
+      div0 = element("div");
+      div0.innerHTML = `<img class="pt-sm white svelte-zy82bb" src="/systems/foundryvtt-final-fantasy/assets/round-table-games-logo.svg" alt="Round Table Games Logo" height="50" width="50" style="fill: white; border: none; width: auto;"/>`;
+      div1 = element("div");
+      h4 = element("h4");
+      h4.textContent = `${MODULE_TITLE} `;
       a1 = element("a");
-      a1.textContent = "Round Table Games";
-      attr(main, "class", "svelte-12546n4");
+      a1.textContent = "Round Table Games ©2025";
+      attr(main, "class", "svelte-zy82bb");
+      attr(div0, "class", "flex2 right");
       attr(a1, "href", "https://www.round-table.games");
-      attr(a1, "class", "svelte-12546n4");
-      attr(footer, "class", "svelte-12546n4");
+      attr(a1, "class", "svelte-zy82bb");
+      attr(div1, "class", "flex2 left pt-sm");
+      attr(footer, "class", "svelte-zy82bb");
     },
     m(target, anchor) {
       insert(target, main, anchor);
@@ -17266,8 +17273,10 @@ function create_default_slot(ctx) {
       append(p2, t5);
       append(main, p3);
       insert(target, footer, anchor);
-      append(footer, p4);
-      append(footer, a1);
+      append(footer, div0);
+      append(footer, div1);
+      append(div1, h4);
+      append(div1, a1);
     },
     p(ctx2, dirty) {
       if (dirty & /*version*/
@@ -20186,7 +20195,7 @@ Hooks.on("PopOut:close", (app) => {
     app.position.enabled = true;
   }
 });
-const version = "0.0.1";
+const version = "0.0.4";
 class WelcomeApplication extends SvelteApplication {
   /**
    * Default Application options
@@ -20200,8 +20209,8 @@ class WelcomeApplication extends SvelteApplication {
       classes: ["<s_SVELTE_HASH_ID>"],
       resizable: true,
       minimizable: true,
-      width: 220,
-      height: 400,
+      width: 280,
+      height: 300,
       // headerIcon: 'path/to/img.svg',
       title: game.i18n.localize(`${MODULE_TITLE} v${version}`),
       svelte: {
