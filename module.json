@@ -7,7 +7,7 @@
     "dist/style.css"
   ],
   "esmodules": [
-    "index.js"
+    "dist/index.js"
   ],
   "languages": [
     {
