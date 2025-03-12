@@ -45,7 +45,7 @@ const resetUses = async (items) => {
     await item.update({ system: { uses: 0 } });
   }
 };
-const BaseFFCombat = eval("CONFIG?.Combat?.documentClass") || class {
+const BaseFFCombat = CONFIG && CONFIG.Combat && CONFIG.Combat.documentClass || class {
 };
 class FFCombat extends BaseFFCombat {
   /**
@@ -486,7 +486,7 @@ class DamageOverTime {
     }
   }
 }
-let ProcTrigger$1 = class ProcTrigger2 {
+let ProcTrigger$1 = class ProcTrigger {
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -561,7 +561,7 @@ let ProcTrigger$1 = class ProcTrigger2 {
     }
   }
 };
-class ProcTrigger {
+class ProcTrigger2 {
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -751,10 +751,10 @@ const effects = {
   EnableCombatTurnSlot,
   DamageOverTime,
   ProcTrigger: ProcTrigger$1,
-  LucidDreaming: ProcTrigger,
+  LucidDreaming: ProcTrigger2,
   DurationManager
 };
-const BaseFFActor = eval("CONFIG?.Actor?.documentClass") || class {
+const BaseFFActor = CONFIG && CONFIG.Combat && CONFIG.Actor.documentClass || class {
 };
 class FFXIVActor extends BaseFFActor {
   /**
@@ -20195,7 +20195,7 @@ Hooks.on("PopOut:close", (app) => {
     app.position.enabled = true;
   }
 });
-const version = "0.0.4";
+const version = "0.0.5";
 class WelcomeApplication extends SvelteApplication {
   /**
    * Default Application options
