@@ -1,5 +1,8 @@
 {
   "FFXIVA": {
+    "Errors": {
+      "CannotMoveWhileFocused": "Cannot move while `focus` condition is active on token."
+    },
     "Title": "Module Title",
     "Setting": {
       "DontShowWelcome": {
