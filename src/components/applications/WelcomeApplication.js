@@ -2,7 +2,7 @@
 
 import WelcomeAppShell from './WelcomeAppShell.svelte';
 import { SvelteApplication } from "@typhonjs-fvtt/runtime/svelte/application";
-import { MODULE_ID, MODULE_TITLE } from "~/src/helpers/constants"
+import { MODULE_ID, MODULE_TITLE, MODULE_CODE } from "~/src/helpers/constants"
 import { version } from "../../../module.json";
 
 export default class WelcomeApplication extends SvelteApplication
@@ -17,13 +17,13 @@ export default class WelcomeApplication extends SvelteApplication
    {
       return foundry.utils.mergeObject(super.defaultOptions, {
         id: `${MODULE_ID}-welcome`,
-        classes: ['<s_SVELTE_HASH_ID>'],
+        classes: [`${MODULE_CODE} welcome`],
          resizable: true,
          minimizable: true,
-         width: 280,
-         height: 300,
+         width: 290,
+         height: 380,
          // headerIcon: 'path/to/img.svg',
-         title: game.i18n.localize(`${MODULE_TITLE} v${version}`),
+         title: game.i18n.localize(`v${version} ${MODULE_TITLE}`),
          svelte: {
             class: WelcomeAppShell,
             target: document.body,

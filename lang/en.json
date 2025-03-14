@@ -8,7 +8,14 @@
     "Setting": {
       "DontShowWelcome": {
         "Name": "Don't show this message again",
-        "Hint": "Don't show the welcome application when Foundry first loads. (You can always undo this via Configure Settings)."
+        "Hint": "Don't show the welcome application when Foundry first loads. (You can always undo this via Configure Settings).",
+        "Support": "If you wish to support the development of this module, please consider a monthly donation via",
+        "Bugs": "Bugs or feature requests can be reported via",
+        "Version": "Current version:",
+        "SponsorLinkText": "GitHub Sponsors",
+        "IssuesLinkText": "GitHub Issues",
+        "Disclaimer": "This module is not affiliated with Square Enix or Final Fantasy XIV. All trademarks and copyrights are property of their respective owners.",
+        "Introduction": "This module provides automation for Final Fantasy XIV combat. It is currently in development and not all actions are automated yet."
       },
       "combatStartSound": {
         "Name": "Sound file for combat start",
