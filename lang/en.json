@@ -1,7 +1,8 @@
 {
   "FFXIVA": {
     "Errors": {
-      "CannotMoveWhileFocused": "Cannot move while `focus` condition is active on token."
+      "CannotMoveWhileFocused": "Cannot move while `focus` condition is active on token.",
+      "SlotNotAvailable": "No matching action slot available."
     },
     "Title": "Module Title",
     "Setting": {

@@ -291,7 +291,7 @@ export default class RollGuards extends CONFIG.FFXIV.RollGuards {
     }
 
     // If we get here, no valid slot was found
-    const msg = localize("Types.Item.Types.action.SlotNotAvailable").replace("%s", actionType);
+    const msg = localize("Errors.SlotNotAvailable").replace("%s", actionType);
     ui.notifications.warn(msg);
     return false;
   }
