@@ -1,3 +1,5 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 const MODULE_ID = "foundryvtt-final-fantasy-XIV-automation";
 const MODULE_TITLE = "Final Fantasy XIV Automation";
 const MODULE_CODE = "FFXIVA";
@@ -26,11 +28,13 @@ function generateRandomElementId(length = 8) {
   }
   return result;
 }
+__name(generateRandomElementId, "generateRandomElementId");
 function localize$1(string) {
-  console.log("[FFXIVA] | [UTIL] localize", MODULE_CODE, string);
+  if (typeof game === "undefined") return string;
   return game.i18n.localize(`${MODULE_CODE}.${string}`);
 }
-const resetActionState = async (actor) => {
+__name(localize$1, "localize$1");
+const resetActionState = /* @__PURE__ */ __name(async (actor) => {
   const baseActions = ["primary", "secondary"];
   const extraActions = actor.statuses.has("focus") ? ["secondary"] : [];
   await actor.update({
@@ -39,15 +43,18 @@ const resetActionState = async (actor) => {
       used: []
     }
   });
-};
-const resetUses = async (items) => {
+}, "resetActionState");
+const resetUses = /* @__PURE__ */ __name(async (items) => {
   for (const item of items) {
     await item.update({ system: { uses: 0 } });
   }
-};
+}, "resetUses");
 const BaseFFCombat = CONFIG && CONFIG.Combat && CONFIG.Combat.documentClass || class {
 };
 class FFCombat extends BaseFFCombat {
+  static {
+    __name(this, "FFCombat");
+  }
   /**
    * Initialize the combat instance
    * @param {object} data - The combat data
@@ -105,6 +112,9 @@ class FFCombat extends BaseFFCombat {
   }
 }
 class PrimaryBaseDamageBuff {
+  static {
+    __name(this, "PrimaryBaseDamageBuff");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -133,6 +143,9 @@ class PrimaryBaseDamageBuff {
   }
 }
 class AbilityBaseDamageBuff {
+  static {
+    __name(this, "AbilityBaseDamageBuff");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -182,6 +195,9 @@ class AbilityBaseDamageBuff {
   }
 }
 class DamageDiceReroll {
+  static {
+    __name(this, "DamageDiceReroll");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -235,6 +251,9 @@ class DamageDiceReroll {
   }
 }
 class TransferEffectToAllies {
+  static {
+    __name(this, "TransferEffectToAllies");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -315,6 +334,9 @@ class TransferEffectToAllies {
   }
 }
 class EnableCombatTurnSlot {
+  static {
+    __name(this, "EnableCombatTurnSlot");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -343,6 +365,9 @@ class EnableCombatTurnSlot {
   }
 }
 class DamageOverTime {
+  static {
+    __name(this, "DamageOverTime");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -487,6 +512,9 @@ class DamageOverTime {
   }
 }
 let ProcTrigger$1 = class ProcTrigger {
+  static {
+    __name(this, "ProcTrigger");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -562,6 +590,9 @@ let ProcTrigger$1 = class ProcTrigger {
   }
 };
 class ProcTrigger2 {
+  static {
+    __name(this, "ProcTrigger");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -577,6 +608,9 @@ class ProcTrigger2 {
   }
 }
 class DurationManager {
+  static {
+    __name(this, "DurationManager");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -757,6 +791,9 @@ const effects = {
 const BaseFFActor = CONFIG && CONFIG.Combat && CONFIG.Actor.documentClass || class {
 };
 class FFXIVActor extends BaseFFActor {
+  static {
+    __name(this, "FFXIVActor");
+  }
   /**
    * Creates a new FFXIV actor
    * @param {object} data - The actor data
@@ -962,6 +999,9 @@ class FFXIVActor extends BaseFFActor {
   }
 }
 class RollGuards extends CONFIG.FFXIV.RollGuards {
+  static {
+    __name(this, "RollGuards");
+  }
   /** @type {Actor} The actor associated with these roll guards */
   actor;
   /** 
@@ -1094,8 +1134,8 @@ class RollGuards extends CONFIG.FFXIV.RollGuards {
       const confirmed = await Dialog.confirm({
         title: "Confirm Ability Use",
         content: `<p>Use ${item.name}? (${remainingUses} use${remainingUses > 1 ? "s" : ""} remaining)</p>`,
-        yes: () => true,
-        no: () => false,
+        yes: /* @__PURE__ */ __name(() => true, "yes"),
+        no: /* @__PURE__ */ __name(() => false, "no"),
         defaultYes: true
       });
       if (!confirmed) return false;
@@ -1189,7 +1229,7 @@ class RollGuards extends CONFIG.FFXIV.RollGuards {
         }
       }
     }
-    const msg = localize$1("Types.Item.Types.action.SlotNotAvailable").replace("%s", actionType);
+    const msg = localize$1("Errors.SlotNotAvailable").replace("%s", actionType);
     ui.notifications.warn(msg);
     return false;
   }
@@ -1317,6 +1357,9 @@ class RollGuards extends CONFIG.FFXIV.RollGuards {
   }
 }
 class DefaultChatHandler {
+  static {
+    __name(this, "DefaultChatHandler");
+  }
   /**
    * @param {Actor} actor - The actor this handler is for
    */
@@ -1354,6 +1397,9 @@ class DefaultChatHandler {
   }
 }
 class AbilitiesLimiter {
+  static {
+    __name(this, "AbilitiesLimiter");
+  }
   /**
    * @param {Actor} actor - The actor this effect is applied to
    */
@@ -1539,6 +1585,9 @@ class AbilitiesLimiter {
   }
 }
 class EffectManager extends CONFIG.FFXIV.EffectManager {
+  static {
+    __name(this, "EffectManager");
+  }
   /**
    * @param {Actor} actor - The actor this handler is for
    */
@@ -1797,6 +1846,9 @@ class EffectManager extends CONFIG.FFXIV.EffectManager {
   }
 }
 class ActionHandler {
+  static {
+    __name(this, "ActionHandler");
+  }
   /**
    * @param {Actor} actor - The actor this handler is for
    */
@@ -2224,6 +2276,9 @@ class ActionHandler {
   }
 }
 class AttributeHandler {
+  static {
+    __name(this, "AttributeHandler");
+  }
   /**
    * @param {Actor} actor - The actor this handler is for
    */
@@ -2270,6 +2325,9 @@ class AttributeHandler {
   }
 }
 class CombatSlotManager {
+  static {
+    __name(this, "CombatSlotManager");
+  }
   /**
    * @param {Actor} actor - The actor this handler is for
    */
@@ -2385,6 +2443,9 @@ class CombatSlotManager {
   }
 }
 class GuardManager {
+  static {
+    __name(this, "GuardManager");
+  }
   /**
    * @param {Actor} actor - The actor this handler is for
    * @param {RollGuards} rollGuards - The RollGuards instance to use for checks
@@ -2421,6 +2482,9 @@ class GuardManager {
   }
 }
 class RollCalcActor extends CONFIG.FFXIV.RollCalc {
+  static {
+    __name(this, "RollCalcActor");
+  }
   constructor(params) {
     super(params);
     this.params = params;
@@ -2531,7 +2595,8 @@ class RollCalcActor extends CONFIG.FFXIV.RollCalc {
 }
 function noop() {
 }
-const identity = (x) => x;
+__name(noop, "noop");
+const identity = /* @__PURE__ */ __name((x) => x, "identity");
 function assign(tar, src) {
   for (const k in src) tar[k] = src[k];
   return (
@@ -2539,21 +2604,27 @@ function assign(tar, src) {
     tar
   );
 }
+__name(assign, "assign");
 function run(fn) {
   return fn();
 }
+__name(run, "run");
 function blank_object() {
   return /* @__PURE__ */ Object.create(null);
 }
+__name(blank_object, "blank_object");
 function run_all(fns) {
   fns.forEach(run);
 }
+__name(run_all, "run_all");
 function is_function(thing) {
   return typeof thing === "function";
 }
+__name(is_function, "is_function");
 function safe_not_equal(a, b) {
   return a != a ? b == b : a !== b || a && typeof a === "object" || typeof a === "function";
 }
+__name(safe_not_equal, "safe_not_equal");
 let src_url_equal_anchor;
 function src_url_equal(element_src, url) {
   if (element_src === url) return true;
@@ -2563,9 +2634,11 @@ function src_url_equal(element_src, url) {
   src_url_equal_anchor.href = url;
   return element_src === src_url_equal_anchor.href;
 }
+__name(src_url_equal, "src_url_equal");
 function is_empty(obj) {
   return Object.keys(obj).length === 0;
 }
+__name(is_empty, "is_empty");
 function subscribe(store, ...callbacks) {
   if (store == null) {
     for (const callback of callbacks) {
@@ -2576,33 +2649,40 @@ function subscribe(store, ...callbacks) {
   const unsub = store.subscribe(...callbacks);
   return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
 }
+__name(subscribe, "subscribe");
 function get_store_value(store) {
   let value;
   subscribe(store, (_) => value = _)();
   return value;
 }
+__name(get_store_value, "get_store_value");
 function component_subscribe(component, store, callback) {
   component.$$.on_destroy.push(subscribe(store, callback));
 }
+__name(component_subscribe, "component_subscribe");
 function create_slot(definition, ctx, $$scope, fn) {
   if (definition) {
     const slot_ctx = get_slot_context(definition, ctx, $$scope, fn);
     return definition[0](slot_ctx);
   }
 }
+__name(create_slot, "create_slot");
 function get_slot_context(definition, ctx, $$scope, fn) {
   return definition[1] && fn ? assign($$scope.ctx.slice(), definition[1](fn(ctx))) : $$scope.ctx;
 }
+__name(get_slot_context, "get_slot_context");
 function get_slot_changes(definition, $$scope, dirty, fn) {
   if (definition[2] && fn) ;
   return $$scope.dirty;
 }
+__name(get_slot_changes, "get_slot_changes");
 function update_slot_base(slot, slot_definition, ctx, $$scope, slot_changes, get_slot_context_fn) {
   if (slot_changes) {
     const slot_context = get_slot_context(slot_definition, ctx, $$scope, get_slot_context_fn);
     slot.p(slot_context, slot_changes);
   }
 }
+__name(update_slot_base, "update_slot_base");
 function get_all_dirty_from_scope($$scope) {
   if ($$scope.ctx.length > 32) {
     const dirty = [];
@@ -2614,9 +2694,11 @@ function get_all_dirty_from_scope($$scope) {
   }
   return -1;
 }
+__name(get_all_dirty_from_scope, "get_all_dirty_from_scope");
 function action_destroyer(action_result) {
   return action_result && is_function(action_result.destroy) ? action_result.destroy : noop;
 }
+__name(action_destroyer, "action_destroyer");
 const is_client = typeof window !== "undefined";
 let now = is_client ? () => window.performance.now() : () => Date.now();
 let raf = is_client ? (cb) => requestAnimationFrame(cb) : noop;
@@ -2630,6 +2712,7 @@ function run_tasks(now2) {
   });
   if (tasks.size !== 0) raf(run_tasks);
 }
+__name(run_tasks, "run_tasks");
 function loop(callback) {
   let task;
   if (tasks.size === 0) raf(run_tasks);
@@ -2642,9 +2725,11 @@ function loop(callback) {
     }
   };
 }
+__name(loop, "loop");
 function append(target, node) {
   target.appendChild(node);
 }
+__name(append, "append");
 function get_root_for_style(node) {
   if (!node) return document;
   const root = node.getRootNode ? node.getRootNode() : node.ownerDocument;
@@ -2657,12 +2742,14 @@ function get_root_for_style(node) {
   }
   return node.ownerDocument;
 }
+__name(get_root_for_style, "get_root_for_style");
 function append_empty_stylesheet(node) {
   const style_element = element("style");
   style_element.textContent = "/* empty */";
   append_stylesheet(get_root_for_style(node), style_element);
   return style_element.sheet;
 }
+__name(append_empty_stylesheet, "append_empty_stylesheet");
 function append_stylesheet(node, style) {
   append(
     /** @type {Document} */
@@ -2671,63 +2758,78 @@ function append_stylesheet(node, style) {
   );
   return style.sheet;
 }
+__name(append_stylesheet, "append_stylesheet");
 function insert(target, node, anchor) {
   target.insertBefore(node, anchor || null);
 }
+__name(insert, "insert");
 function detach(node) {
   if (node.parentNode) {
     node.parentNode.removeChild(node);
   }
 }
+__name(detach, "detach");
 function destroy_each(iterations, detaching) {
   for (let i = 0; i < iterations.length; i += 1) {
     if (iterations[i]) iterations[i].d(detaching);
   }
 }
+__name(destroy_each, "destroy_each");
 function element(name) {
   return document.createElement(name);
 }
+__name(element, "element");
 function svg_element(name) {
   return document.createElementNS("http://www.w3.org/2000/svg", name);
 }
+__name(svg_element, "svg_element");
 function text(data) {
   return document.createTextNode(data);
 }
+__name(text, "text");
 function space() {
   return text(" ");
 }
+__name(space, "space");
 function empty() {
   return text("");
 }
+__name(empty, "empty");
 function listen(node, event, handler, options) {
   node.addEventListener(event, handler, options);
   return () => node.removeEventListener(event, handler, options);
 }
+__name(listen, "listen");
 function prevent_default(fn) {
   return function(event) {
     event.preventDefault();
     return fn.call(this, event);
   };
 }
+__name(prevent_default, "prevent_default");
 function stop_propagation(fn) {
   return function(event) {
     event.stopPropagation();
     return fn.call(this, event);
   };
 }
+__name(stop_propagation, "stop_propagation");
 function attr(node, attribute, value) {
   if (value == null) node.removeAttribute(attribute);
   else if (node.getAttribute(attribute) !== value) node.setAttribute(attribute, value);
 }
+__name(attr, "attr");
 function children(element2) {
   return Array.from(element2.childNodes);
 }
+__name(children, "children");
 function set_data(text2, data) {
   data = "" + data;
   if (text2.data === data) return;
   text2.data = /** @type {string} */
   data;
 }
+__name(set_data, "set_data");
 function set_style(node, key, value, important) {
   if (value == null) {
     node.style.removeProperty(key);
@@ -2735,13 +2837,19 @@ function set_style(node, key, value, important) {
     node.style.setProperty(key, value, "");
   }
 }
+__name(set_style, "set_style");
 function toggle_class(element2, name, toggle) {
   element2.classList.toggle(name, !!toggle);
 }
+__name(toggle_class, "toggle_class");
 function custom_event(type, detail, { bubbles = false, cancelable = false } = {}) {
   return new CustomEvent(type, { detail, bubbles, cancelable });
 }
+__name(custom_event, "custom_event");
 class HtmlTag {
+  static {
+    __name(this, "HtmlTag");
+  }
   /**
    * @private
    * @default false
@@ -2827,6 +2935,7 @@ class HtmlTag {
 function construct_svelte_component(component, props) {
   return new component(props);
 }
+__name(construct_svelte_component, "construct_svelte_component");
 const managed_styles = /* @__PURE__ */ new Map();
 let active = 0;
 function hash(str) {
@@ -2835,11 +2944,13 @@ function hash(str) {
   while (i--) hash2 = (hash2 << 5) - hash2 ^ str.charCodeAt(i);
   return hash2 >>> 0;
 }
+__name(hash, "hash");
 function create_style_information(doc, node) {
   const info = { stylesheet: append_empty_stylesheet(node), rules: {} };
   managed_styles.set(doc, info);
   return info;
 }
+__name(create_style_information, "create_style_information");
 function create_rule(node, a, b, duration, delay, ease, fn, uid = 0) {
   const step = 16.666 / duration;
   let keyframes = "{\n";
@@ -2862,6 +2973,7 @@ function create_rule(node, a, b, duration, delay, ease, fn, uid = 0) {
   active += 1;
   return name;
 }
+__name(create_rule, "create_rule");
 function delete_rule(node, name) {
   const previous = (node.style.animation || "").split(", ");
   const next = previous.filter(
@@ -2875,6 +2987,7 @@ function delete_rule(node, name) {
     if (!active) clear_rules();
   }
 }
+__name(delete_rule, "delete_rule");
 function clear_rules() {
   raf(() => {
     if (active) return;
@@ -2885,20 +2998,25 @@ function clear_rules() {
     managed_styles.clear();
   });
 }
+__name(clear_rules, "clear_rules");
 let current_component;
 function set_current_component(component) {
   current_component = component;
 }
+__name(set_current_component, "set_current_component");
 function get_current_component() {
   if (!current_component) throw new Error("Function called outside component initialization");
   return current_component;
 }
+__name(get_current_component, "get_current_component");
 function onMount(fn) {
   get_current_component().$$.on_mount.push(fn);
 }
+__name(onMount, "onMount");
 function onDestroy(fn) {
   get_current_component().$$.on_destroy.push(fn);
 }
+__name(onDestroy, "onDestroy");
 function createEventDispatcher() {
   const component = get_current_component();
   return (type, detail, { cancelable = false } = {}) => {
@@ -2918,13 +3036,16 @@ function createEventDispatcher() {
     return true;
   };
 }
+__name(createEventDispatcher, "createEventDispatcher");
 function setContext(key, context) {
   get_current_component().$$.context.set(key, context);
   return context;
 }
+__name(setContext, "setContext");
 function getContext(key) {
   return get_current_component().$$.context.get(key);
 }
+__name(getContext, "getContext");
 const dirty_components = [];
 const binding_callbacks = [];
 let render_callbacks = [];
@@ -2937,12 +3058,15 @@ function schedule_update() {
     resolved_promise.then(flush);
   }
 }
+__name(schedule_update, "schedule_update");
 function add_render_callback(fn) {
   render_callbacks.push(fn);
 }
+__name(add_render_callback, "add_render_callback");
 function add_flush_callback(fn) {
   flush_callbacks.push(fn);
 }
+__name(add_flush_callback, "add_flush_callback");
 const seen_callbacks = /* @__PURE__ */ new Set();
 let flushidx = 0;
 function flush() {
@@ -2983,6 +3107,7 @@ function flush() {
   seen_callbacks.clear();
   set_current_component(saved_component);
 }
+__name(flush, "flush");
 function update($$) {
   if ($$.fragment !== null) {
     $$.update();
@@ -2993,6 +3118,7 @@ function update($$) {
     $$.after_update.forEach(add_render_callback);
   }
 }
+__name(update, "update");
 function flush_render_callbacks(fns) {
   const filtered = [];
   const targets = [];
@@ -3000,6 +3126,7 @@ function flush_render_callbacks(fns) {
   targets.forEach((c) => c());
   render_callbacks = filtered;
 }
+__name(flush_render_callbacks, "flush_render_callbacks");
 let promise;
 function wait() {
   if (!promise) {
@@ -3010,9 +3137,11 @@ function wait() {
   }
   return promise;
 }
+__name(wait, "wait");
 function dispatch(node, direction, kind) {
   node.dispatchEvent(custom_event(`${direction ? "intro" : "outro"}${kind}`));
 }
+__name(dispatch, "dispatch");
 const outroing = /* @__PURE__ */ new Set();
 let outros;
 function group_outros() {
@@ -3023,18 +3152,21 @@ function group_outros() {
     // parent group
   };
 }
+__name(group_outros, "group_outros");
 function check_outros() {
   if (!outros.r) {
     run_all(outros.c);
   }
   outros = outros.p;
 }
+__name(check_outros, "check_outros");
 function transition_in(block, local) {
   if (block && block.i) {
     outroing.delete(block);
     block.i(local);
   }
 }
+__name(transition_in, "transition_in");
 function transition_out(block, local, detach2, callback) {
   if (block && block.o) {
     if (outroing.has(block)) return;
@@ -3051,6 +3183,7 @@ function transition_out(block, local, detach2, callback) {
     callback();
   }
 }
+__name(transition_out, "transition_out");
 const null_transition = { duration: 0 };
 function create_in_transition(node, fn, params) {
   const options = { direction: "in" };
@@ -3062,6 +3195,7 @@ function create_in_transition(node, fn, params) {
   function cleanup() {
     if (animation_name) delete_rule(node, animation_name);
   }
+  __name(cleanup, "cleanup");
   function go() {
     const {
       delay = 0,
@@ -3093,6 +3227,7 @@ function create_in_transition(node, fn, params) {
       return running;
     });
   }
+  __name(go, "go");
   let started = false;
   return {
     start() {
@@ -3117,6 +3252,7 @@ function create_in_transition(node, fn, params) {
     }
   };
 }
+__name(create_in_transition, "create_in_transition");
 function create_out_transition(node, fn, params) {
   const options = { direction: "out" };
   let config = fn(node, params, options);
@@ -3160,6 +3296,7 @@ function create_out_transition(node, fn, params) {
       return running;
     });
   }
+  __name(go, "go");
   if (is_function(config)) {
     wait().then(() => {
       config = config(options);
@@ -3183,13 +3320,16 @@ function create_out_transition(node, fn, params) {
     }
   };
 }
+__name(create_out_transition, "create_out_transition");
 function ensure_array_like(array_like_or_iterator) {
   return array_like_or_iterator?.length !== void 0 ? array_like_or_iterator : Array.from(array_like_or_iterator);
 }
+__name(ensure_array_like, "ensure_array_like");
 function destroy_block(block, lookup) {
   block.d(1);
   lookup.delete(block.key);
 }
+__name(destroy_block, "destroy_block");
 function update_keyed_each(old_blocks, dirty, get_key, dynamic, ctx, list, lookup, node, destroy, create_each_block2, next, get_context) {
   let o = old_blocks.length;
   let n = list.length;
@@ -3223,6 +3363,7 @@ function update_keyed_each(old_blocks, dirty, get_key, dynamic, ctx, list, looku
     next = block.first;
     n--;
   }
+  __name(insert2, "insert");
   while (o && n) {
     const new_block = new_blocks[n - 1];
     const old_block = old_blocks[o - 1];
@@ -3255,6 +3396,7 @@ function update_keyed_each(old_blocks, dirty, get_key, dynamic, ctx, list, looku
   run_all(updates);
   return new_blocks;
 }
+__name(update_keyed_each, "update_keyed_each");
 function get_spread_update(levels, updates) {
   const update2 = {};
   const to_null_out = {};
@@ -3285,9 +3427,11 @@ function get_spread_update(levels, updates) {
   }
   return update2;
 }
+__name(get_spread_update, "get_spread_update");
 function get_spread_object(spread_props) {
   return typeof spread_props === "object" && spread_props !== null ? spread_props : {};
 }
+__name(get_spread_object, "get_spread_object");
 function bind(component, name, callback) {
   const index = component.$$.props[name];
   if (index !== void 0) {
@@ -3295,9 +3439,11 @@ function bind(component, name, callback) {
     callback(component.$$.ctx[index]);
   }
 }
+__name(bind, "bind");
 function create_component(block) {
   block && block.c();
 }
+__name(create_component, "create_component");
 function mount_component(component, target, anchor) {
   const { fragment, after_update } = component.$$;
   fragment && fragment.m(target, anchor);
@@ -3312,6 +3458,7 @@ function mount_component(component, target, anchor) {
   });
   after_update.forEach(add_render_callback);
 }
+__name(mount_component, "mount_component");
 function destroy_component(component, detaching) {
   const $$ = component.$$;
   if ($$.fragment !== null) {
@@ -3322,6 +3469,7 @@ function destroy_component(component, detaching) {
     $$.ctx = [];
   }
 }
+__name(destroy_component, "destroy_component");
 function make_dirty(component, i) {
   if (component.$$.dirty[0] === -1) {
     dirty_components.push(component);
@@ -3330,6 +3478,7 @@ function make_dirty(component, i) {
   }
   component.$$.dirty[i / 31 | 0] |= 1 << i % 31;
 }
+__name(make_dirty, "make_dirty");
 function init$1(component, options, instance2, create_fragment2, not_equal, props, append_styles = null, dirty = [-1]) {
   const parent_component = current_component;
   set_current_component(component);
@@ -3382,7 +3531,11 @@ function init$1(component, options, instance2, create_fragment2, not_equal, prop
   }
   set_current_component(parent_component);
 }
+__name(init$1, "init$1");
 class SvelteComponent {
+  static {
+    __name(this, "SvelteComponent");
+  }
   /**
    * ### PRIVATE API
    *
@@ -3440,6 +3593,7 @@ function readable(value, start) {
     subscribe: writable(value, start).subscribe
   };
 }
+__name(readable, "readable");
 function writable(value, start = noop) {
   let stop;
   const subscribers = /* @__PURE__ */ new Set();
@@ -3461,9 +3615,11 @@ function writable(value, start = noop) {
       }
     }
   }
+  __name(set2, "set");
   function update2(fn) {
     set2(fn(value));
   }
+  __name(update2, "update");
   function subscribe2(run2, invalidate = noop) {
     const subscriber = [run2, invalidate];
     subscribers.add(subscriber);
@@ -3479,8 +3635,10 @@ function writable(value, start = noop) {
       }
     };
   }
+  __name(subscribe2, "subscribe");
   return { set: set2, update: update2, subscribe: subscribe2 };
 }
+__name(writable, "writable");
 function derived(stores, fn, initial_value) {
   const single = !Array.isArray(stores);
   const stores_array = single ? [stores] : stores;
@@ -3493,7 +3651,7 @@ function derived(stores, fn, initial_value) {
     const values = [];
     let pending = 0;
     let cleanup = noop;
-    const sync = () => {
+    const sync = /* @__PURE__ */ __name(() => {
       if (pending) {
         return;
       }
@@ -3504,7 +3662,7 @@ function derived(stores, fn, initial_value) {
       } else {
         cleanup = is_function(result) ? result : noop;
       }
-    };
+    }, "sync");
     const unsubscribers = stores_array.map(
       (store, i) => subscribe(
         store,
@@ -3522,23 +3680,24 @@ function derived(stores, fn, initial_value) {
     );
     started = true;
     sync();
-    return function stop() {
+    return /* @__PURE__ */ __name(function stop() {
       run_all(unsubscribers);
       cleanup();
       started = false;
-    };
+    }, "stop");
   });
 }
+__name(derived, "derived");
 const mappedGameTargets = writable(false);
 const tokenMovement = /* @__PURE__ */ new Map();
-const getTokenMovement$1 = (tokenId) => tokenMovement.get(tokenId) || 0;
-const addTokenMovement = (tokenId, distance) => {
+const getTokenMovement$1 = /* @__PURE__ */ __name((tokenId) => tokenMovement.get(tokenId) || 0, "getTokenMovement$1");
+const addTokenMovement = /* @__PURE__ */ __name((tokenId, distance) => {
   const current = getTokenMovement$1(tokenId);
   tokenMovement.set(tokenId, current + distance);
-};
-const resetTokenMovement = (tokenId) => {
+}, "addTokenMovement");
+const resetTokenMovement = /* @__PURE__ */ __name((tokenId) => {
   tokenMovement.set(tokenId, 0);
-};
+}, "resetTokenMovement");
 function updateCombat() {
   Hooks.on("updateCombat", async (combat, changed, options, userId) => {
     if (!("turn" in changed || "round" in changed) || changed.turn === null) return;
@@ -3570,6 +3729,7 @@ function updateCombat() {
     }
   });
 }
+__name(updateCombat, "updateCombat");
 function preDeleteChatMessage() {
   Hooks.on("preDeleteChatMessage", async (message) => {
     const FFMessage = message.getFlag(MODULE_ID, "data");
@@ -3609,6 +3769,7 @@ function preDeleteChatMessage() {
     }
   });
 }
+__name(preDeleteChatMessage, "preDeleteChatMessage");
 function targetToken() {
   Hooks.on("targetToken", (User, Token) => {
     const targets = game.user.targets.filter((target) => {
@@ -3626,11 +3787,13 @@ function targetToken() {
     mappedGameTargets.set(targets);
   });
 }
+__name(targetToken, "targetToken");
 function deleteCombat() {
   Hooks.on("deleteCombat", async (combat) => {
     await combat.resetCombatantAbilities();
   });
 }
+__name(deleteCombat, "deleteCombat");
 function combatStart() {
   Hooks.on("combatStart", async (combat, data, meta, id) => {
     const combatStartSound2 = game.settings.get(MODULE_ID, "combatStartSound").trim();
@@ -3640,6 +3803,7 @@ function combatStart() {
     await combat.resetCombatantAbilities();
   });
 }
+__name(combatStart, "combatStart");
 function preUpdateToken() {
   Hooks.on("preUpdateToken", async (tokenDocument, update2) => {
     const actor = game.actors.get(tokenDocument.actorId);
@@ -3653,10 +3817,12 @@ function preUpdateToken() {
     }
   });
 }
+__name(preUpdateToken, "preUpdateToken");
 function canvasReady$1() {
   Hooks.on("canvasReady", () => {
   });
 }
+__name(canvasReady$1, "canvasReady$1");
 function preCreateCombatant() {
   Hooks.on("preCreateCombatant", async (combatant, data, meta, id) => {
     const actor = combatant.actor;
@@ -3664,29 +3830,34 @@ function preCreateCombatant() {
     await resetActionState(actor);
   });
 }
+__name(preCreateCombatant, "preCreateCombatant");
 function updateActiveEffect() {
 }
+__name(updateActiveEffect, "updateActiveEffect");
 if (typeof window !== "undefined")
   (window.__svelte || (window.__svelte = { v: /* @__PURE__ */ new Set() })).v.add(PUBLIC_VERSION);
 function cubicOut(t) {
   const f = t - 1;
   return f * f * f + 1;
 }
+__name(cubicOut, "cubicOut");
 function fade(node, { delay = 0, duration = 400, easing = identity } = {}) {
   const o = +getComputedStyle(node).opacity;
   return {
     delay,
     duration,
     easing,
-    css: (t) => `opacity: ${t * o}`
+    css: /* @__PURE__ */ __name((t) => `opacity: ${t * o}`, "css")
   };
 }
+__name(fade, "fade");
 function set(obj, key, val) {
   if (typeof val.value === "object") val.value = klona(val.value);
   if (!val.enumerable || val.get || val.set || !val.configurable || !val.writable || key === "__proto__") {
     Object.defineProperty(obj, key, val);
   } else obj[key] = val.value;
 }
+__name(set, "set");
 function klona(x) {
   if (typeof x !== "object") return x;
   var i = 0, k, list, tmp, str = Object.prototype.toString.call(x);
@@ -3726,6 +3897,7 @@ function klona(x) {
   }
   return tmp || x;
 }
+__name(klona, "klona");
 const s_TAG_OBJECT = "[object Object]";
 function deepMerge(target = {}, ...sourceObj) {
   if (Object.prototype.toString.call(target) !== s_TAG_OBJECT) {
@@ -3738,6 +3910,7 @@ function deepMerge(target = {}, ...sourceObj) {
   }
   return _deepMerge(target, ...sourceObj);
 }
+__name(deepMerge, "deepMerge");
 function hasGetter(object, accessor) {
   if (typeof object !== "object" || object === null || object === void 0) {
     return false;
@@ -3754,15 +3927,18 @@ function hasGetter(object, accessor) {
   }
   return false;
 }
+__name(hasGetter, "hasGetter");
 function isIterable(value) {
   if (value === null || value === void 0 || typeof value !== "object") {
     return false;
   }
   return Symbol.iterator in value;
 }
+__name(isIterable, "isIterable");
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+__name(isObject, "isObject");
 function isPlainObject(value) {
   if (Object.prototype.toString.call(value) !== s_TAG_OBJECT) {
     return false;
@@ -3770,6 +3946,7 @@ function isPlainObject(value) {
   const prototype = Object.getPrototypeOf(value);
   return prototype === null || prototype === Object.prototype;
 }
+__name(isPlainObject, "isPlainObject");
 function safeAccess(data, accessor, defaultValue) {
   if (typeof data !== "object") {
     return defaultValue;
@@ -3786,6 +3963,7 @@ function safeAccess(data, accessor, defaultValue) {
   }
   return data;
 }
+__name(safeAccess, "safeAccess");
 function safeSet(data, accessor, value, operation = "set", createMissing = true) {
   if (typeof data !== "object") {
     throw new TypeError(`safeSet Error: 'data' is not an 'object'.`);
@@ -3836,6 +4014,7 @@ function safeSet(data, accessor, value, operation = "set", createMissing = true)
   }
   return true;
 }
+__name(safeSet, "safeSet");
 function _deepMerge(target = {}, ...sourceObj) {
   for (let cntr = 0; cntr < sourceObj.length; cntr++) {
     const obj = sourceObj[cntr];
@@ -3851,7 +4030,11 @@ function _deepMerge(target = {}, ...sourceObj) {
   }
   return target;
 }
+__name(_deepMerge, "_deepMerge");
 class A11yHelper {
+  static {
+    __name(this, "A11yHelper");
+  }
   /**
    * Apply focus to the HTMLElement targets in a given A11yFocusSource data object. An iterable list `options.focusEl`
    * can contain HTMLElements or selector strings. If multiple focus targets are provided in a list then the first
@@ -4147,6 +4330,9 @@ class A11yHelper {
   }
 }
 class StyleParse {
+  static {
+    __name(this, "StyleParse");
+  }
   static #regexPixels = /(\d+)\s*px/;
   /**
    * Parses a pixel string / computed styles. Ex. `100px` returns `100`.
@@ -4165,6 +4351,9 @@ class StyleParse {
   }
 }
 class TJSStyleManager {
+  static {
+    __name(this, "TJSStyleManager");
+  }
   /** @type {CSSStyleRule} */
   #cssRule;
   /** @type {string} */
@@ -4359,6 +4548,9 @@ class TJSStyleManager {
 }
 const cssVariables = new TJSStyleManager({ docKey: "#__trl-root-styles", version: 1 });
 class Timing {
+  static {
+    __name(this, "Timing");
+  }
   /**
    * Wraps a callback in a debounced timeout.
    *
@@ -4423,6 +4615,7 @@ function isUpdatableStore(store) {
   }
   return false;
 }
+__name(isUpdatableStore, "isUpdatableStore");
 function isWritableStore(store) {
   if (store === null || store === void 0) {
     return false;
@@ -4434,6 +4627,7 @@ function isWritableStore(store) {
   }
   return false;
 }
+__name(isWritableStore, "isWritableStore");
 function subscribeIgnoreFirst(store, update2) {
   let firedFirst = false;
   return store.subscribe((value) => {
@@ -4444,22 +4638,24 @@ function subscribeIgnoreFirst(store, update2) {
     }
   });
 }
+__name(subscribeIgnoreFirst, "subscribeIgnoreFirst");
 function resizeObserver(node, target) {
   ResizeObserverManager.add(node, target);
   return {
     /**
      * @param {ResizeObserverTarget} newTarget - An object or function to update with observed width & height changes.
      */
-    update: (newTarget) => {
+    update: /* @__PURE__ */ __name((newTarget) => {
       ResizeObserverManager.remove(node, target);
       target = newTarget;
       ResizeObserverManager.add(node, target);
-    },
-    destroy: () => {
+    }, "update"),
+    destroy: /* @__PURE__ */ __name(() => {
       ResizeObserverManager.remove(node, target);
-    }
+    }, "destroy")
   };
 }
+__name(resizeObserver, "resizeObserver");
 resizeObserver.updateCache = function(el) {
   if (!(el instanceof HTMLElement)) {
     throw new TypeError(`resizeObserverUpdate error: 'el' is not an HTMLElement.`);
@@ -4486,6 +4682,9 @@ resizeObserver.updateCache = function(el) {
 };
 const s_MAP = /* @__PURE__ */ new Map();
 class ResizeObserverManager {
+  static {
+    __name(this, "ResizeObserverManager");
+  }
   /**
    * Add an HTMLElement and ResizeObserverTarget instance for monitoring. Create cached style attributes for the
    * given element include border & padding dimensions for offset width / height calculations.
@@ -4603,6 +4802,7 @@ function s_GET_UPDATE_TYPE(target) {
   }
   return s_UPDATE_TYPES.none;
 }
+__name(s_GET_UPDATE_TYPE, "s_GET_UPDATE_TYPE");
 function s_UPDATE_SUBSCRIBER(subscriber, contentWidth, contentHeight) {
   const styles = subscriber.styles;
   subscriber.contentWidth = contentWidth;
@@ -4649,6 +4849,7 @@ function s_UPDATE_SUBSCRIBER(subscriber, contentWidth, contentHeight) {
       break;
   }
 }
+__name(s_UPDATE_SUBSCRIBER, "s_UPDATE_SUBSCRIBER");
 function applyStyles(node, properties) {
   function setProperties() {
     if (!isObject(properties)) {
@@ -4658,23 +4859,29 @@ function applyStyles(node, properties) {
       node.style.setProperty(`${prop}`, properties[prop]);
     }
   }
+  __name(setProperties, "setProperties");
   setProperties();
   return {
     /**
      * @param {Record<string, string>}  newProperties - Key / value object of properties to set.
      */
-    update: (newProperties) => {
+    update: /* @__PURE__ */ __name((newProperties) => {
       properties = newProperties;
       setProperties();
-    }
+    }, "update")
   };
 }
+__name(applyStyles, "applyStyles");
 function lerp(start, end, amount) {
   return (1 - amount) * start + amount * end;
 }
+__name(lerp, "lerp");
 class TJSDefaultTransition {
+  static {
+    __name(this, "TJSDefaultTransition");
+  }
   static #options = {};
-  static #default = () => void 0;
+  static #default = /* @__PURE__ */ __name(() => void 0, "#default");
   /**
    * @returns {() => undefined} Default empty transition.
    */
@@ -4818,6 +5025,7 @@ function create_else_block$2(ctx) {
     }
   };
 }
+__name(create_else_block$2, "create_else_block$2");
 function create_if_block$5(ctx) {
   let div0;
   let applyStyles_action;
@@ -4959,6 +5167,7 @@ function create_if_block$5(ctx) {
     }
   };
 }
+__name(create_if_block$5, "create_if_block$5");
 function create_fragment$8(ctx) {
   let div;
   let current_block_type_index;
@@ -4975,6 +5184,7 @@ function create_fragment$8(ctx) {
     ) return 0;
     return 1;
   }
+  __name(select_block_type, "select_block_type");
   current_block_type_index = select_block_type(ctx);
   if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
   return {
@@ -5164,6 +5374,7 @@ function create_fragment$8(ctx) {
     }
   };
 }
+__name(create_fragment$8, "create_fragment$8");
 function instance$8($$self, $$props, $$invalidate) {
   let { $$slots: slots = {}, $$scope } = $$props;
   let { background = "#50505080" } = $$props;
@@ -5196,30 +5407,35 @@ function instance$8($$self, $$props, $$invalidate) {
       dispatch2("close:glasspane");
     }
   }
+  __name(swallow, "swallow");
   function div0_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       backgroundEl = $$value;
       $$invalidate(9, backgroundEl);
     });
   }
+  __name(div0_binding, "div0_binding");
   function div1_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       containerEl = $$value;
       $$invalidate(10, containerEl);
     });
   }
+  __name(div1_binding, "div1_binding");
   function div_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       backgroundEl = $$value;
       $$invalidate(9, backgroundEl);
     });
   }
+  __name(div_binding, "div_binding");
   function div_binding_1($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       glassPaneEl = $$value;
       $$invalidate(11, glassPaneEl);
     });
   }
+  __name(div_binding_1, "div_binding_1");
   $$self.$$set = ($$props2) => {
     if ("background" in $$props2) $$invalidate(5, background = $$props2.background);
     if ("captureInput" in $$props2) $$invalidate(13, captureInput = $$props2.captureInput);
@@ -5312,7 +5528,11 @@ function instance$8($$self, $$props, $$invalidate) {
     div_binding_1
   ];
 }
+__name(instance$8, "instance$8");
 class TJSGlassPane extends SvelteComponent {
+  static {
+    __name(this, "TJSGlassPane");
+  }
   constructor(options) {
     super();
     init$1(this, options, instance$8, create_fragment$8, safe_not_equal, {
@@ -5333,6 +5553,9 @@ class TJSGlassPane extends SvelteComponent {
   }
 }
 class AppShellContextInternal {
+  static {
+    __name(this, "AppShellContextInternal");
+  }
   /** @type {InternalAppStores} */
   #stores;
   constructor() {
@@ -5358,6 +5581,7 @@ function isHMRProxy(comp) {
   const prototypeName = comp?.prototype?.constructor?.name;
   return typeof prototypeName === "string" && (prototypeName.startsWith("Proxy<") || prototypeName === "ProxyComponent");
 }
+__name(isHMRProxy, "isHMRProxy");
 function isSvelteComponent(comp) {
   if (comp === null || comp === void 0 || typeof comp !== "function") {
     return false;
@@ -5371,6 +5595,7 @@ function isSvelteComponent(comp) {
     typeof comp.render === "function"
   );
 }
+__name(isSvelteComponent, "isSvelteComponent");
 async function outroAndDestroy(instance2) {
   return new Promise((resolve) => {
     if (instance2.$$.fragment && instance2.$$.fragment.o) {
@@ -5386,6 +5611,7 @@ async function outroAndDestroy(instance2) {
     }
   });
 }
+__name(outroAndDestroy, "outroAndDestroy");
 function parseTJSSvelteConfig(config, thisArg = void 0) {
   if (!isObject(config)) {
     throw new TypeError(`parseSvelteConfig - 'config' is not an object:
@@ -5510,6 +5736,7 @@ ${JSON.stringify(config)}`);
   svelteConfig.context.set("#external", externalContext);
   return svelteConfig;
 }
+__name(parseTJSSvelteConfig, "parseTJSSvelteConfig");
 function s_PROCESS_PROPS(props, thisArg, config) {
   if (typeof props === "function") {
     const result = props.call(thisArg);
@@ -5529,14 +5756,16 @@ ${JSON.stringify(config)}`
   }
   return {};
 }
+__name(s_PROCESS_PROPS, "s_PROCESS_PROPS");
 function localize(stringId, data) {
   const result = !isObject(data) ? globalThis.game.i18n.localize(stringId) : globalThis.game.i18n.format(stringId, data);
   return result !== void 0 ? result : "";
 }
+__name(localize, "localize");
 function writableDerived(origins, derive, reflect, initial) {
   var childDerivedSetter, originValues, blockNextDerive = false;
   var reflectOldValues = reflect.length >= 2;
-  var wrappedDerive = (got, set2, update3) => {
+  var wrappedDerive = /* @__PURE__ */ __name((got, set2, update3) => {
     childDerivedSetter = set2;
     if (reflectOldValues) {
       originValues = got;
@@ -5550,7 +5779,7 @@ function writableDerived(origins, derive, reflect, initial) {
       }
     }
     blockNextDerive = false;
-  };
+  }, "wrappedDerive");
   var childDerived = derived(origins, wrappedDerive, initial);
   var singleOrigin = !Array.isArray(origins);
   function doReflect(reflecting) {
@@ -5566,6 +5795,7 @@ function writableDerived(origins, derive, reflect, initial) {
     }
     blockNextDerive = false;
   }
+  __name(doReflect, "doReflect");
   var tryingSet = false;
   function update2(fn) {
     var isUpdated, mutatedBySubscriptions, oldValue, newValue;
@@ -5595,6 +5825,7 @@ function writableDerived(origins, derive, reflect, initial) {
       doReflect(newValue);
     }
   }
+  __name(update2, "update");
   return {
     subscribe: childDerived.subscribe,
     set(value) {
@@ -5603,6 +5834,7 @@ function writableDerived(origins, derive, reflect, initial) {
     update: update2
   };
 }
+__name(writableDerived, "writableDerived");
 function propertyStore(origin, propName) {
   if (!Array.isArray(propName)) {
     return writableDerived(
@@ -5634,6 +5866,7 @@ function propertyStore(origin, propName) {
     );
   }
 }
+__name(propertyStore, "propertyStore");
 const EPSILON = 1e-6;
 const IDENTITY_4X4 = new Float32Array([
   1,
@@ -5654,6 +5887,9 @@ const IDENTITY_4X4 = new Float32Array([
   1
 ]);
 class Mat4 extends Float32Array {
+  static {
+    __name(this, "Mat4");
+  }
   /**
    * The number of bytes in a {@link Mat4}.
    */
@@ -7703,6 +7939,9 @@ Mat4.mul = Mat4.multiply;
 Mat4.perspective = Mat4.perspectiveNO;
 Mat4.ortho = Mat4.orthoNO;
 class Vec3 extends Float32Array {
+  static {
+    __name(this, "Vec3");
+  }
   /**
   * The number of bytes in a {@link Vec3}.
   */
@@ -8767,13 +9006,19 @@ async function nextAnimationFrame(cntr = 1) {
   }
   return currentTime;
 }
+__name(nextAnimationFrame, "nextAnimationFrame");
 function clamp(value = 0, min = 0, max = 0) {
   return Math.min(Math.max(value, min), max);
 }
+__name(clamp, "clamp");
 function degToRad(deg) {
   return deg * (Math.PI / 180);
 }
+__name(degToRad, "degToRad");
 class AnimationControl {
+  static {
+    __name(this, "AnimationControl");
+  }
   /** @type {object} */
   #animationData;
   /** @type {Promise<void>} */
@@ -8847,6 +9092,9 @@ class AnimationControl {
   }
 }
 class AnimationManager {
+  static {
+    __name(this, "AnimationManager");
+  }
   /**
    * @type {object[]}
    */
@@ -9056,6 +9304,7 @@ function setNumericDefaults(data) {
     data.rotation = 0;
   }
 }
+__name(setNumericDefaults, "setNumericDefaults");
 const transformKeysBitwise = {
   rotateX: 1,
   rotateY: 2,
@@ -9110,7 +9359,11 @@ function convertRelative(positionData, position) {
     }
   }
 }
+__name(convertRelative, "convertRelative");
 class AnimationAPI {
+  static {
+    __name(this, "AnimationAPI");
+  }
   /** @type {import('../').TJSPositionData} */
   #data;
   /** @type {import('../').TJSPosition} */
@@ -9479,7 +9732,7 @@ class AnimationAPI {
       resolve: void 0,
       start: void 0
     };
-    const quickToCB = (...args) => {
+    const quickToCB = /* @__PURE__ */ __name((...args) => {
       const argsLength = args.length;
       if (argsLength === 0) {
         return;
@@ -9521,7 +9774,7 @@ class AnimationAPI {
         animationData.start = now2 + (AnimationManager.current - now2);
         animationData.current = 0;
       }
-    };
+    }, "quickToCB");
     quickToCB.keys = keysArray;
     quickToCB.options = ({ duration: duration2, ease: ease2, interpolate: interpolate2 } = {}) => {
       if (duration2 !== void 0 && (!Number.isFinite(duration2) || duration2 < 0)) {
@@ -9548,6 +9801,9 @@ class AnimationAPI {
   }
 }
 class AnimationGroupControl {
+  static {
+    __name(this, "AnimationGroupControl");
+  }
   /** @type {import('./AnimationControl').AnimationControl[]} */
   #animationControls;
   /** @type {Promise<Awaited<unknown>[]>} */
@@ -9643,6 +9899,9 @@ class AnimationGroupControl {
   }
 }
 class AnimationGroupAPI {
+  static {
+    __name(this, "AnimationGroupAPI");
+  }
   /**
    * Checks of the given object is a TJSPosition instance by checking for AnimationAPI.
    *
@@ -10096,7 +10355,7 @@ class AnimationGroupAPI {
     }
     const keysArray = [...keys];
     Object.freeze(keysArray);
-    const quickToCB = (...args) => {
+    const quickToCB = /* @__PURE__ */ __name((...args) => {
       const argsLength = args.length;
       if (argsLength === 0) {
         return;
@@ -10158,7 +10417,7 @@ class AnimationGroupAPI {
           quickToCallbacks[cntr](...args);
         }
       }
-    };
+    }, "quickToCB");
     quickToCB.keys = keysArray;
     quickToCB.options = (options2) => {
       if (options2 !== void 0 && !isObject(options2) && typeof options2 !== "function") {
@@ -10221,6 +10480,9 @@ class AnimationGroupAPI {
   }
 }
 class Centered {
+  static {
+    __name(this, "Centered");
+  }
   /**
    * @type {HTMLElement}
    */
@@ -10363,6 +10625,9 @@ class Centered {
   }
 }
 class PositionChangeSet {
+  static {
+    __name(this, "PositionChangeSet");
+  }
   constructor() {
     this.left = false;
     this.top = false;
@@ -10394,6 +10659,9 @@ class PositionChangeSet {
   }
 }
 class TJSPositionData {
+  static {
+    __name(this, "TJSPositionData");
+  }
   constructor({
     height = null,
     left = null,
@@ -10461,6 +10729,9 @@ class TJSPositionData {
   }
 }
 class PositionStateAPI {
+  static {
+    __name(this, "PositionStateAPI");
+  }
   /** @type {import('./TJSPositionData').TJSPositionData} */
   #data;
   /**
@@ -10661,6 +10932,9 @@ class PositionStateAPI {
   }
 }
 class StyleCache {
+  static {
+    __name(this, "StyleCache");
+  }
   constructor() {
     this.el = void 0;
     this.computed = void 0;
@@ -10763,6 +11037,9 @@ class StyleCache {
   }
 }
 class TJSTransformData {
+  static {
+    __name(this, "TJSTransformData");
+  }
   constructor() {
     Object.seal(this);
   }
@@ -10828,6 +11105,9 @@ const s_MAT4_RESULT = Mat4.create();
 const s_MAT4_TEMP = Mat4.create();
 const s_VEC3_TEMP = Vec3.create();
 class TJSTransforms {
+  static {
+    __name(this, "TJSTransforms");
+  }
   /**
    * Stores the transform keys in the order added.
    *
@@ -11435,7 +11715,11 @@ function s_GET_ORIGIN_TRANSLATION(transformOrigin, width, height, output) {
   }
   return output;
 }
+__name(s_GET_ORIGIN_TRANSLATION, "s_GET_ORIGIN_TRANSLATION");
 class AdapterValidators {
+  static {
+    __name(this, "AdapterValidators");
+  }
   /** @type {boolean} */
   #enabled = true;
   /**
@@ -11629,6 +11913,9 @@ class AdapterValidators {
   }
 }
 class BasicBounds {
+  static {
+    __name(this, "BasicBounds");
+  }
   /**
    * When true constrains the min / max width or height to element.
    *
@@ -11786,6 +12073,9 @@ class BasicBounds {
 }
 const s_TRANSFORM_DATA = new TJSTransformData();
 class TransformBounds {
+  static {
+    __name(this, "TransformBounds");
+  }
   /**
    * When true constrains the min / max width or height to element.
    *
@@ -11949,6 +12239,9 @@ class TransformBounds {
   }
 }
 class UpdateElementData {
+  static {
+    __name(this, "UpdateElementData");
+  }
   constructor() {
     this.data = void 0;
     this.dataSubscribers = new TJSPositionData();
@@ -11970,6 +12263,9 @@ class UpdateElementData {
   }
 }
 class UpdateElementManager {
+  static {
+    __name(this, "UpdateElementManager");
+  }
   static list = [];
   static listCntr = 0;
   static updatePromise;
@@ -12101,6 +12397,7 @@ function s_UPDATE_ELEMENT(el, updateData) {
     el.style.transform = updateData.transforms.isActive ? updateData.transforms.getCSS() : null;
   }
 }
+__name(s_UPDATE_ELEMENT, "s_UPDATE_ELEMENT");
 function s_UPDATE_ELEMENT_ORTHO(el, updateData) {
   const changeSet = updateData.changeSet;
   const data = updateData.data;
@@ -12120,6 +12417,7 @@ function s_UPDATE_ELEMENT_ORTHO(el, updateData) {
     el.style.transform = updateData.transforms.getCSSOrtho(data);
   }
 }
+__name(s_UPDATE_ELEMENT_ORTHO, "s_UPDATE_ELEMENT_ORTHO");
 function s_UPDATE_TRANSFORM(el, updateData) {
   s_VALIDATION_DATA$1.height = updateData.data.height !== "auto" ? updateData.data.height : updateData.styleCache.offsetHeight;
   s_VALIDATION_DATA$1.width = updateData.data.width !== "auto" ? updateData.data.width : updateData.styleCache.offsetWidth;
@@ -12128,6 +12426,7 @@ function s_UPDATE_TRANSFORM(el, updateData) {
   updateData.transforms.getData(updateData.data, updateData.transformData, s_VALIDATION_DATA$1);
   updateData.storeTransform.set(updateData.transformData);
 }
+__name(s_UPDATE_TRANSFORM, "s_UPDATE_TRANSFORM");
 const s_VALIDATION_DATA$1 = {
   height: void 0,
   width: void 0,
@@ -12135,6 +12434,9 @@ const s_VALIDATION_DATA$1 = {
   marginTop: void 0
 };
 class TJSPosition {
+  static {
+    __name(this, "TJSPosition");
+  }
   /**
    * @type {{browserCentered: Centered, Centered: Centered}}
    */
@@ -13227,6 +13529,7 @@ function draggable(node, {
     node.addEventListener(...handlers.dragDown);
     node.classList.add("draggable");
   }
+  __name(activateListeners, "activateListeners");
   function removeListeners() {
     if (typeof storeDragging?.set === "function") {
       storeDragging.set(false);
@@ -13236,6 +13539,7 @@ function draggable(node, {
     node.removeEventListener(...handlers.dragUp);
     node.classList.remove("draggable");
   }
+  __name(removeListeners, "removeListeners");
   if (active2) {
     activateListeners();
   }
@@ -13273,6 +13577,7 @@ function draggable(node, {
     node.addEventListener(...handlers.dragUp);
     node.setPointerCapture(event.pointerId);
   }
+  __name(onDragPointerDown, "onDragPointerDown");
   function onDragPointerChange(event) {
     if ((event.buttons & 1) === 0) {
       onDragPointerUp(event);
@@ -13296,6 +13601,7 @@ function draggable(node, {
       position.set(positionData);
     }
   }
+  __name(onDragPointerChange, "onDragPointerChange");
   function onDragPointerUp(event) {
     event.preventDefault();
     dragging = false;
@@ -13305,9 +13611,10 @@ function draggable(node, {
     node.removeEventListener(...handlers.dragMove);
     node.removeEventListener(...handlers.dragUp);
   }
+  __name(onDragPointerUp, "onDragPointerUp");
   return {
     // The default of active being true won't automatically add listeners twice.
-    update: (options) => {
+    update: /* @__PURE__ */ __name((options) => {
       if (typeof options.active === "boolean") {
         active2 = options.active;
         if (active2) {
@@ -13344,11 +13651,15 @@ function draggable(node, {
           ignoreTargetClassList = options.ignoreTargetClassList;
         }
       }
-    },
-    destroy: () => removeListeners()
+    }, "update"),
+    destroy: /* @__PURE__ */ __name(() => removeListeners(), "destroy")
   };
 }
+__name(draggable, "draggable");
 class DraggableOptions {
+  static {
+    __name(this, "DraggableOptions");
+  }
   #ease = false;
   /**
    * @type {{ duration: number, ease: (t: number) => number | string }}
@@ -13370,23 +13681,23 @@ class DraggableOptions {
    */
   constructor({ ease, easeOptions } = {}) {
     Object.defineProperty(this, "ease", {
-      get: () => {
+      get: /* @__PURE__ */ __name(() => {
         return this.#ease;
-      },
-      set: (newEase) => {
+      }, "get"),
+      set: /* @__PURE__ */ __name((newEase) => {
         if (typeof newEase !== "boolean") {
           throw new TypeError(`'ease' is not a boolean.`);
         }
         this.#ease = newEase;
         this.#updateSubscribers();
-      },
+      }, "set"),
       enumerable: true
     });
     Object.defineProperty(this, "easeOptions", {
-      get: () => {
+      get: /* @__PURE__ */ __name(() => {
         return this.#easeOptions;
-      },
-      set: (newEaseOptions) => {
+      }, "get"),
+      set: /* @__PURE__ */ __name((newEaseOptions) => {
         if (!isObject(newEaseOptions)) {
           throw new TypeError(`'easeOptions' is not an object.`);
         }
@@ -13406,7 +13717,7 @@ class DraggableOptions {
           this.#easeOptions.ease = newEaseOptions.ease;
         }
         this.#updateSubscribers();
-      },
+      }, "set"),
       enumerable: true
     });
     if (ease !== void 0) {
@@ -13539,6 +13850,7 @@ function create_if_block$4(ctx) {
     }
   };
 }
+__name(create_if_block$4, "create_if_block$4");
 function create_fragment$7(ctx) {
   let a;
   let html_tag;
@@ -13679,6 +13991,7 @@ function create_fragment$7(ctx) {
     }
   };
 }
+__name(create_fragment$7, "create_fragment$7");
 const s_REGEX_HTML$1 = /^\s*<.*>$/;
 function instance$7($$self, $$props, $$invalidate) {
   let title;
@@ -13695,6 +14008,7 @@ function instance$7($$self, $$props, $$invalidate) {
       $$invalidate(0, button);
     }
   }
+  __name(onClick, "onClick");
   function onContextMenu(event) {
     const invoke = button?.onContextMenu;
     if (typeof invoke === "function") {
@@ -13702,12 +14016,14 @@ function instance$7($$self, $$props, $$invalidate) {
       $$invalidate(0, button);
     }
   }
+  __name(onContextMenu, "onContextMenu");
   function onKeydown(event) {
     if (event.code === keyCode) {
       event.preventDefault();
       event.stopPropagation();
     }
   }
+  __name(onKeydown, "onKeydown");
   function onKeyup(event) {
     if (event.code === keyCode) {
       const invoke = button.onPress ?? button.onclick;
@@ -13719,6 +14035,7 @@ function instance$7($$self, $$props, $$invalidate) {
       event.stopPropagation();
     }
   }
+  __name(onKeyup, "onKeyup");
   $$self.$$set = ($$props2) => {
     if ("button" in $$props2) $$invalidate(0, button = $$props2.button);
   };
@@ -13761,7 +14078,11 @@ function instance$7($$self, $$props, $$invalidate) {
     title
   ];
 }
+__name(instance$7, "instance$7");
 class TJSHeaderButton extends SvelteComponent {
+  static {
+    __name(this, "TJSHeaderButton");
+  }
   constructor(options) {
     super();
     init$1(this, options, instance$7, create_fragment$7, safe_not_equal, { button: 0 });
@@ -13779,11 +14100,13 @@ function get_each_context$1(ctx, list, i) {
   child_ctx[31] = list[i];
   return child_ctx;
 }
+__name(get_each_context$1, "get_each_context$1");
 function get_each_context_1(ctx, list, i) {
   const child_ctx = ctx.slice();
   child_ctx[31] = list[i];
   return child_ctx;
 }
+__name(get_each_context_1, "get_each_context_1");
 function create_if_block$3(ctx) {
   let img;
   let img_src_value;
@@ -13812,6 +14135,7 @@ function create_if_block$3(ctx) {
     }
   };
 }
+__name(create_if_block$3, "create_if_block$3");
 function create_each_block_1(ctx) {
   let switch_instance;
   let switch_instance_anchor;
@@ -13838,6 +14162,7 @@ function create_each_block_1(ctx) {
     }
     return { props: switch_instance_props };
   }
+  __name(switch_props, "switch_props");
   if (switch_value) {
     switch_instance = construct_svelte_component(switch_value, switch_props(ctx));
   }
@@ -13897,6 +14222,7 @@ function create_each_block_1(ctx) {
     }
   };
 }
+__name(create_each_block_1, "create_each_block_1");
 function create_each_block$1(ctx) {
   let switch_instance;
   let switch_instance_anchor;
@@ -13923,6 +14249,7 @@ function create_each_block$1(ctx) {
     }
     return { props: switch_instance_props };
   }
+  __name(switch_props, "switch_props");
   if (switch_value) {
     switch_instance = construct_svelte_component(switch_value, switch_props(ctx));
   }
@@ -13982,6 +14309,7 @@ function create_each_block$1(ctx) {
     }
   };
 }
+__name(create_each_block$1, "create_each_block$1");
 function create_key_block(ctx) {
   let header;
   let t0;
@@ -14010,9 +14338,9 @@ function create_key_block(ctx) {
   for (let i = 0; i < each_value_1.length; i += 1) {
     each_blocks_1[i] = create_each_block_1(get_each_context_1(ctx, each_value_1, i));
   }
-  const out = (i) => transition_out(each_blocks_1[i], 1, 1, () => {
+  const out = /* @__PURE__ */ __name((i) => transition_out(each_blocks_1[i], 1, 1, () => {
     each_blocks_1[i] = null;
-  });
+  }), "out");
   let each_value = ensure_array_like(
     /*buttonsRight*/
     ctx[2]
@@ -14021,9 +14349,9 @@ function create_key_block(ctx) {
   for (let i = 0; i < each_value.length; i += 1) {
     each_blocks[i] = create_each_block$1(get_each_context$1(ctx, each_value, i));
   }
-  const out_1 = (i) => transition_out(each_blocks[i], 1, 1, () => {
+  const out_1 = /* @__PURE__ */ __name((i) => transition_out(each_blocks[i], 1, 1, () => {
     each_blocks[i] = null;
-  });
+  }), "out_1");
   return {
     c() {
       header = element("header");
@@ -14222,6 +14550,7 @@ function create_key_block(ctx) {
     }
   };
 }
+__name(create_key_block, "create_key_block");
 function create_fragment$6(ctx) {
   let previous_key = (
     /*draggable*/
@@ -14272,6 +14601,7 @@ function create_fragment$6(ctx) {
     }
   };
 }
+__name(create_fragment$6, "create_fragment$6");
 function instance$6($$self, $$props, $$invalidate) {
   let $focusKeep;
   let $focusAuto;
@@ -14312,31 +14642,34 @@ function instance$6($$self, $$props, $$invalidate) {
   let buttonsLeft;
   let buttonsRight;
   function minimizable(node, booleanStore) {
-    const callback = (event) => {
+    const callback = /* @__PURE__ */ __name((event) => {
       if (event.target.classList.contains("window-title") || event.target.classList.contains("window-header") || event.target.classList.contains("keep-minimized")) {
         application._onToggleMinimize(event);
       }
-    };
+    }, "callback");
     function activateListeners() {
       node.addEventListener("dblclick", callback);
     }
+    __name(activateListeners, "activateListeners");
     function removeListeners() {
       node.removeEventListener("dblclick", callback);
     }
+    __name(removeListeners, "removeListeners");
     if (booleanStore) {
       activateListeners();
     }
     return {
-      update: (booleanStore2) => {
+      update: /* @__PURE__ */ __name((booleanStore2) => {
         if (booleanStore2) {
           activateListeners();
         } else {
           removeListeners();
         }
-      },
-      destroy: () => removeListeners()
+      }, "update"),
+      destroy: /* @__PURE__ */ __name(() => removeListeners(), "destroy")
     };
   }
+  __name(minimizable, "minimizable");
   function onPointerdown(event) {
     const rootEl = $elementRoot;
     if ($focusAuto && rootEl instanceof HTMLElement && rootEl?.isConnected) {
@@ -14352,6 +14685,7 @@ function instance$6($$self, $$props, $$invalidate) {
       }
     }
   }
+  __name(onPointerdown, "onPointerdown");
   $$self.$$set = ($$props2) => {
     if ("draggable" in $$props2) $$invalidate(0, draggable$1 = $$props2.draggable);
     if ("draggableOptions" in $$props2) $$invalidate(20, draggableOptions = $$props2.draggableOptions);
@@ -14425,7 +14759,11 @@ function instance$6($$self, $$props, $$invalidate) {
     $storeDraggable
   ];
 }
+__name(instance$6, "instance$6");
 class TJSApplicationHeader extends SvelteComponent {
+  static {
+    __name(this, "TJSApplicationHeader");
+  }
   constructor(options) {
     super();
     init$1(this, options, instance$6, create_fragment$6, safe_not_equal, { draggable: 0, draggableOptions: 20 }, null, [-1, -1]);
@@ -14467,6 +14805,7 @@ function create_fragment$5(ctx) {
     }
   };
 }
+__name(create_fragment$5, "create_fragment$5");
 function instance$5($$self, $$props, $$invalidate) {
   let { elementRoot = void 0 } = $$props;
   let { enabled = true } = $$props;
@@ -14484,12 +14823,14 @@ function instance$5($$self, $$props, $$invalidate) {
       }
     }
   }
+  __name(onFocus, "onFocus");
   function div_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       wrapEl = $$value;
       $$invalidate(0, wrapEl);
     });
   }
+  __name(div_binding, "div_binding");
   $$self.$$set = ($$props2) => {
     if ("elementRoot" in $$props2) $$invalidate(2, elementRoot = $$props2.elementRoot);
     if ("enabled" in $$props2) $$invalidate(3, enabled = $$props2.enabled);
@@ -14504,7 +14845,11 @@ function instance$5($$self, $$props, $$invalidate) {
   };
   return [wrapEl, onFocus, elementRoot, enabled, div_binding];
 }
+__name(instance$5, "instance$5");
 class TJSFocusWrap extends SvelteComponent {
+  static {
+    __name(this, "TJSFocusWrap");
+  }
   constructor(options) {
     super();
     init$1(this, options, instance$5, create_fragment$5, safe_not_equal, { elementRoot: 2, enabled: 3 });
@@ -14564,6 +14909,7 @@ function create_fragment$4(ctx) {
     }
   };
 }
+__name(create_fragment$4, "create_fragment$4");
 function instance$4($$self, $$props, $$invalidate) {
   let $storeElementRoot;
   let $storeMinimized;
@@ -14592,6 +14938,7 @@ function instance$4($$self, $$props, $$invalidate) {
       $$invalidate(7, isResizable = true);
       node.style.display = "block";
     }
+    __name(activateListeners, "activateListeners");
     function removeListeners() {
       if (typeof storeResizing2?.set === "function") {
         storeResizing2.set(false);
@@ -14602,6 +14949,7 @@ function instance$4($$self, $$props, $$invalidate) {
       node.style.display = "none";
       $$invalidate(7, isResizable = false);
     }
+    __name(removeListeners, "removeListeners");
     if (active2) {
       activateListeners();
     } else {
@@ -14622,6 +14970,7 @@ function instance$4($$self, $$props, $$invalidate) {
       node.addEventListener(...handlers.resizeUp);
       node.setPointerCapture(event.pointerId);
     }
+    __name(onResizePointerDown, "onResizePointerDown");
     function onResizePointerMove(event) {
       event.preventDefault();
       if (!resizing && typeof storeResizing2?.set === "function") {
@@ -14633,6 +14982,7 @@ function instance$4($$self, $$props, $$invalidate) {
         height: position.height + (event.clientY - initialPosition.y)
       });
     }
+    __name(onResizePointerMove, "onResizePointerMove");
     function onResizePointerUp(event) {
       resizing = false;
       if (typeof storeResizing2?.set === "function") {
@@ -14643,23 +14993,26 @@ function instance$4($$self, $$props, $$invalidate) {
       node.removeEventListener(...handlers.resizeUp);
       application?._onResize?.(event);
     }
+    __name(onResizePointerUp, "onResizePointerUp");
     return {
-      update: ({ active: active3 }) => {
+      update: /* @__PURE__ */ __name(({ active: active3 }) => {
         if (active3) {
           activateListeners();
         } else {
           removeListeners();
         }
-      },
-      destroy: () => removeListeners()
+      }, "update"),
+      destroy: /* @__PURE__ */ __name(() => removeListeners(), "destroy")
     };
   }
+  __name(resizable, "resizable");
   function div_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       elementResize = $$value;
       $$invalidate(0, elementResize), $$invalidate(7, isResizable), $$invalidate(9, $storeMinimized), $$invalidate(8, $storeElementRoot);
     });
   }
+  __name(div_binding, "div_binding");
   $$self.$$set = ($$props2) => {
     if ("isResizable" in $$props2) $$invalidate(7, isResizable = $$props2.isResizable);
   };
@@ -14689,7 +15042,11 @@ function instance$4($$self, $$props, $$invalidate) {
     div_binding
   ];
 }
+__name(instance$4, "instance$4");
 class ResizableHandle extends SvelteComponent {
+  static {
+    __name(this, "ResizableHandle");
+  }
   constructor(options) {
     super();
     init$1(this, options, instance$4, create_fragment$4, safe_not_equal, { isResizable: 7 });
@@ -14942,6 +15299,7 @@ function create_else_block$1(ctx) {
     }
   };
 }
+__name(create_else_block$1, "create_else_block$1");
 function create_if_block$2(ctx) {
   let div;
   let tjsapplicationheader;
@@ -15204,6 +15562,7 @@ function create_if_block$2(ctx) {
     }
   };
 }
+__name(create_if_block$2, "create_if_block$2");
 function create_fragment$3(ctx) {
   let current_block_type_index;
   let if_block;
@@ -15219,6 +15578,7 @@ function create_fragment$3(ctx) {
     ) return 0;
     return 1;
   }
+  __name(select_block_type, "select_block_type");
   current_block_type_index = select_block_type(ctx);
   if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
   return {
@@ -15270,6 +15630,7 @@ function create_fragment$3(ctx) {
     }
   };
 }
+__name(create_fragment$3, "create_fragment$3");
 function instance$3($$self, $$props, $$invalidate) {
   let $focusKeep;
   let $focusAuto;
@@ -15332,6 +15693,7 @@ function instance$3($$self, $$props, $$invalidate) {
       }
     }
   }
+  __name(onClosePopup, "onClosePopup");
   function onKeydown(event) {
     if ((event.target === elementRoot || event.target === elementContent) && KeyboardManager && KeyboardManager?._getMatchingActions?.(KeyboardManager?.getKeyboardEventContext?.(event))?.length) {
       event.target?.blur();
@@ -15353,11 +15715,13 @@ function instance$3($$self, $$props, $$invalidate) {
       application.bringToTop.call(application);
     }
   }
+  __name(onKeydown, "onKeydown");
   function onPointerdownApp() {
     if (typeof application?.options?.popOut === "boolean" && application.options.popOut && application !== globalThis.ui?.activeWindow) {
       application.bringToTop.call(application);
     }
   }
+  __name(onPointerdownApp, "onPointerdownApp");
   function onPointerdownContent(event) {
     const focusable = A11yHelper.isFocusable(event.target);
     if (!focusable && $focusAuto) {
@@ -15373,10 +15737,12 @@ function instance$3($$self, $$props, $$invalidate) {
       }
     }
   }
+  __name(onPointerdownContent, "onPointerdownContent");
   function resizeObservedContent(offsetWidth, offsetHeight) {
     $$invalidate(27, contentOffsetWidth = offsetWidth);
     $$invalidate(26, contentOffsetHeight = offsetHeight);
   }
+  __name(resizeObservedContent, "resizeObservedContent");
   function resizeObservedApp(offsetWidth, offsetHeight, contentWidth, contentHeight) {
     application.position.stores.resizeObserved.update((object) => {
       object.contentWidth = contentWidth;
@@ -15388,30 +15754,35 @@ function instance$3($$self, $$props, $$invalidate) {
     $$invalidate(24, appOffsetHeight = offsetHeight);
     $$invalidate(25, appOffsetWidth = offsetWidth);
   }
+  __name(resizeObservedApp, "resizeObservedApp");
   function section_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       elementContent = $$value;
       $$invalidate(0, elementContent);
     });
   }
+  __name(section_binding, "section_binding");
   function div_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       elementRoot = $$value;
       $$invalidate(1, elementRoot);
     });
   }
+  __name(div_binding, "div_binding");
   function section_binding_1($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       elementContent = $$value;
       $$invalidate(0, elementContent);
     });
   }
+  __name(section_binding_1, "section_binding_1");
   function div_binding_1($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       elementRoot = $$value;
       $$invalidate(1, elementRoot);
     });
   }
+  __name(div_binding_1, "div_binding_1");
   $$self.$$set = ($$props2) => {
     if ("elementContent" in $$props2) $$invalidate(0, elementContent = $$props2.elementContent);
     if ("elementRoot" in $$props2) $$invalidate(1, elementRoot = $$props2.elementRoot);
@@ -15542,7 +15913,11 @@ function instance$3($$self, $$props, $$invalidate) {
     div_binding_1
   ];
 }
+__name(instance$3, "instance$3");
 class ApplicationShell extends SvelteComponent {
+  static {
+    __name(this, "ApplicationShell");
+  }
   constructor(options) {
     super();
     init$1(
@@ -15691,6 +16066,7 @@ function get_each_context(ctx, list, i) {
   child_ctx[26] = list[i];
   return child_ctx;
 }
+__name(get_each_context, "get_each_context");
 function create_if_block_3(ctx) {
   let switch_instance;
   let switch_instance_anchor;
@@ -15717,6 +16093,7 @@ function create_if_block_3(ctx) {
     }
     return { props: switch_instance_props };
   }
+  __name(switch_props, "switch_props");
   if (switch_value) {
     switch_instance = construct_svelte_component(switch_value, switch_props(ctx));
     ctx[16](switch_instance);
@@ -15779,6 +16156,7 @@ function create_if_block_3(ctx) {
     }
   };
 }
+__name(create_if_block_3, "create_if_block_3");
 function create_if_block_2(ctx) {
   let html_tag;
   let html_anchor;
@@ -15814,6 +16192,7 @@ function create_if_block_2(ctx) {
     }
   };
 }
+__name(create_if_block_2, "create_if_block_2");
 function create_if_block$1(ctx) {
   let div;
   let each_blocks = [];
@@ -15822,10 +16201,10 @@ function create_if_block$1(ctx) {
     /*buttons*/
     ctx[1]
   );
-  const get_key = (ctx2) => (
+  const get_key = /* @__PURE__ */ __name((ctx2) => (
     /*button*/
     ctx2[26].id
-  );
+  ), "get_key");
   for (let i = 0; i < each_value.length; i += 1) {
     let child_ctx = get_each_context(ctx, each_value, i);
     let key = get_key(child_ctx);
@@ -15869,6 +16248,7 @@ function create_if_block$1(ctx) {
     }
   };
 }
+__name(create_if_block$1, "create_if_block$1");
 function create_if_block_1(ctx) {
   let html_tag;
   let raw_value = (
@@ -15899,6 +16279,7 @@ function create_if_block_1(ctx) {
     }
   };
 }
+__name(create_if_block_1, "create_if_block_1");
 function create_each_block(key_1, ctx) {
   let button_1;
   let span;
@@ -15927,6 +16308,7 @@ function create_each_block(key_1, ctx) {
       )
     );
   }
+  __name(click_handler, "click_handler");
   function focus_handler() {
     return (
       /*focus_handler*/
@@ -15936,6 +16318,7 @@ function create_each_block(key_1, ctx) {
       )
     );
   }
+  __name(focus_handler, "focus_handler");
   return {
     key: key_1,
     first: null,
@@ -16025,6 +16408,7 @@ function create_each_block(key_1, ctx) {
     }
   };
 }
+__name(create_each_block, "create_each_block");
 function create_fragment$2(ctx) {
   let main;
   let div;
@@ -16043,6 +16427,7 @@ function create_fragment$2(ctx) {
     ) return 1;
     return -1;
   }
+  __name(select_block_type, "select_block_type");
   if (~(current_block_type_index = select_block_type(ctx))) {
     if_block0 = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
   }
@@ -16136,6 +16521,7 @@ function create_fragment$2(ctx) {
     }
   };
 }
+__name(create_fragment$2, "create_fragment$2");
 const s_REGEX_HTML = /^\s*<.*>$/;
 function instance$2($$self, $$props, $$invalidate) {
   let autoClose;
@@ -16212,6 +16598,7 @@ function instance$2($$self, $$props, $$invalidate) {
       }
     }
   }
+  __name(onClick, "onClick");
   function onKeydown(event) {
     switch (event.code) {
       case "ArrowLeft":
@@ -16247,6 +16634,7 @@ function instance$2($$self, $$props, $$invalidate) {
         break;
     }
   }
+  __name(onKeydown, "onKeydown");
   function onKeyup(event) {
     switch (event.code) {
       case "ArrowLeft": {
@@ -16299,26 +16687,30 @@ function instance$2($$self, $$props, $$invalidate) {
         break;
     }
   }
+  __name(onKeyup, "onKeyup");
   function switch_instance_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       dialogComponent = $$value;
       $$invalidate(0, dialogComponent);
     });
   }
+  __name(switch_instance_binding, "switch_instance_binding");
   function div_binding($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       contentEl = $$value;
       $$invalidate(5, contentEl);
     });
   }
-  const click_handler = (button) => onClick(button);
-  const focus_handler = (button) => $$invalidate(4, currentButtonId = button.id);
+  __name(div_binding, "div_binding");
+  const click_handler = /* @__PURE__ */ __name((button) => onClick(button), "click_handler");
+  const focus_handler = /* @__PURE__ */ __name((button) => $$invalidate(4, currentButtonId = button.id), "focus_handler");
   function div_binding_1($$value) {
     binding_callbacks[$$value ? "unshift" : "push"](() => {
       buttonsEl = $$value;
       $$invalidate(2, buttonsEl);
     });
   }
+  __name(div_binding_1, "div_binding_1");
   $$self.$$set = ($$props2) => {
     if ("data" in $$props2) $$invalidate(10, data = $$props2.data);
     if ("preventDefault" in $$props2) $$invalidate(11, preventDefault = $$props2.preventDefault);
@@ -16448,7 +16840,11 @@ function instance$2($$self, $$props, $$invalidate) {
     div_binding_1
   ];
 }
+__name(instance$2, "instance$2");
 class DialogContent extends SvelteComponent {
+  static {
+    __name(this, "DialogContent");
+  }
   constructor(options) {
     super();
     init$1(this, options, instance$2, create_fragment$2, safe_not_equal, {
@@ -16472,9 +16868,11 @@ function create_else_block(ctx) {
   function applicationshell_elementRoot_binding_1(value) {
     ctx[15](value);
   }
+  __name(applicationshell_elementRoot_binding_1, "applicationshell_elementRoot_binding_1");
   function applicationshell_elementContent_binding_1(value) {
     ctx[16](value);
   }
+  __name(applicationshell_elementContent_binding_1, "applicationshell_elementContent_binding_1");
   let applicationshell_props = {
     $$slots: { default: [create_default_slot_2] },
     $$scope: { ctx }
@@ -16550,6 +16948,7 @@ function create_else_block(ctx) {
     }
   };
 }
+__name(create_else_block, "create_else_block");
 function create_if_block(ctx) {
   let tjsglasspane;
   let current;
@@ -16625,6 +17024,7 @@ function create_if_block(ctx) {
     }
   };
 }
+__name(create_if_block, "create_if_block");
 function create_default_slot_2(ctx) {
   let dialogcontent;
   let updating_dialogComponent;
@@ -16632,6 +17032,7 @@ function create_default_slot_2(ctx) {
   function dialogcontent_dialogComponent_binding_1(value) {
     ctx[14](value);
   }
+  __name(dialogcontent_dialogComponent_binding_1, "dialogcontent_dialogComponent_binding_1");
   let dialogcontent_props = { data: (
     /*data*/
     ctx[3]
@@ -16681,6 +17082,7 @@ function create_default_slot_2(ctx) {
     }
   };
 }
+__name(create_default_slot_2, "create_default_slot_2");
 function create_default_slot_1(ctx) {
   let dialogcontent;
   let updating_dialogComponent;
@@ -16688,6 +17090,7 @@ function create_default_slot_1(ctx) {
   function dialogcontent_dialogComponent_binding(value) {
     ctx[10](value);
   }
+  __name(dialogcontent_dialogComponent_binding, "dialogcontent_dialogComponent_binding");
   let dialogcontent_props = {
     data: (
       /*data*/
@@ -16740,6 +17143,7 @@ function create_default_slot_1(ctx) {
     }
   };
 }
+__name(create_default_slot_1, "create_default_slot_1");
 function create_default_slot$1(ctx) {
   let applicationshell;
   let updating_elementRoot;
@@ -16753,9 +17157,11 @@ function create_default_slot$1(ctx) {
   function applicationshell_elementRoot_binding(value) {
     ctx[11](value);
   }
+  __name(applicationshell_elementRoot_binding, "applicationshell_elementRoot_binding");
   function applicationshell_elementContent_binding(value) {
     ctx[12](value);
   }
+  __name(applicationshell_elementContent_binding, "applicationshell_elementContent_binding");
   let applicationshell_props = {
     $$slots: { default: [create_default_slot_1] },
     $$scope: { ctx }
@@ -16831,6 +17237,7 @@ function create_default_slot$1(ctx) {
     }
   };
 }
+__name(create_default_slot$1, "create_default_slot$1");
 function create_fragment$1(ctx) {
   let current_block_type_index;
   let if_block;
@@ -16845,6 +17252,7 @@ function create_fragment$1(ctx) {
     ) return 0;
     return 1;
   }
+  __name(select_block_type, "select_block_type");
   current_block_type_index = select_block_type(ctx);
   if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
   return {
@@ -16896,6 +17304,7 @@ function create_fragment$1(ctx) {
     }
   };
 }
+__name(create_fragment$1, "create_fragment$1");
 const s_MODAL_BACKGROUND = "#50505080";
 function instance$1($$self, $$props, $$invalidate) {
   let { elementContent = void 0 } = $$props;
@@ -16957,6 +17366,7 @@ function instance$1($$self, $$props, $$invalidate) {
       application.close();
     }
   }
+  __name(onKeydown, "onKeydown");
   function onKeydownModal(event) {
     if (event.code === "Escape") {
       event.preventDefault();
@@ -16964,31 +17374,38 @@ function instance$1($$self, $$props, $$invalidate) {
       application.close();
     }
   }
+  __name(onKeydownModal, "onKeydownModal");
   function dialogcontent_dialogComponent_binding(value) {
     dialogComponent = value;
     $$invalidate(2, dialogComponent);
   }
+  __name(dialogcontent_dialogComponent_binding, "dialogcontent_dialogComponent_binding");
   function applicationshell_elementRoot_binding(value) {
     elementRoot = value;
     $$invalidate(0, elementRoot);
   }
+  __name(applicationshell_elementRoot_binding, "applicationshell_elementRoot_binding");
   function applicationshell_elementContent_binding(value) {
     elementContent = value;
     $$invalidate(1, elementContent);
   }
-  const close_glasspane_handler = () => application.close();
+  __name(applicationshell_elementContent_binding, "applicationshell_elementContent_binding");
+  const close_glasspane_handler = /* @__PURE__ */ __name(() => application.close(), "close_glasspane_handler");
   function dialogcontent_dialogComponent_binding_1(value) {
     dialogComponent = value;
     $$invalidate(2, dialogComponent);
   }
+  __name(dialogcontent_dialogComponent_binding_1, "dialogcontent_dialogComponent_binding_1");
   function applicationshell_elementRoot_binding_1(value) {
     elementRoot = value;
     $$invalidate(0, elementRoot);
   }
+  __name(applicationshell_elementRoot_binding_1, "applicationshell_elementRoot_binding_1");
   function applicationshell_elementContent_binding_1(value) {
     elementContent = value;
     $$invalidate(1, elementContent);
   }
+  __name(applicationshell_elementContent_binding_1, "applicationshell_elementContent_binding_1");
   $$self.$$set = ($$props2) => {
     if ("elementContent" in $$props2) $$invalidate(1, elementContent = $$props2.elementContent);
     if ("elementRoot" in $$props2) $$invalidate(0, elementRoot = $$props2.elementRoot);
@@ -17169,7 +17586,11 @@ function instance$1($$self, $$props, $$invalidate) {
     applicationshell_elementContent_binding_1
   ];
 }
+__name(instance$1, "instance$1");
 class DialogShell extends SvelteComponent {
+  static {
+    __name(this, "DialogShell");
+  }
   constructor(options) {
     super();
     init$1(this, options, instance$1, create_fragment$1, safe_not_equal, {
@@ -17224,83 +17645,176 @@ cssVariables.setProperties({
 }, false);
 function create_default_slot(ctx) {
   let main;
-  let p0;
-  let p1;
-  let p2;
-  let t4;
-  let t5;
-  let p3;
-  let footer;
   let div0;
-  let div1;
-  let h4;
+  let p0;
+  let i0;
+  let t0_value = localize$1("Setting.DontShowWelcome.Introduction") + "";
+  let t0;
+  let p1;
+  let i1;
+  let t1_value = localize$1("Setting.DontShowWelcome.Bugs") + "";
+  let t1;
+  let t2;
+  let a0;
+  let p2;
+  let i2;
+  let t5_value = localize$1("Setting.DontShowWelcome.Support") + "";
+  let t5;
+  let t6;
   let a1;
+  let t8;
+  let a2;
+  let p3;
+  let div3;
+  let div1;
+  let input;
+  let div2;
+  let span;
+  let footer;
+  let div4;
+  let div5;
+  let h4;
+  let a3;
+  let mounted;
+  let dispose;
   return {
     c() {
       main = element("main");
-      p0 = element("p");
-      p0.textContent = "This module provides automation for Final Fantasy XIV combat.";
-      p1 = element("p");
-      p1.innerHTML = `It is currently in development and not all actions are automated. If you wish to support the development of this module, please consider a monthly donation via <a href="https://github.com/sponsors/geoidesic">GitHub Sponsors</a>.`;
-      p2 = element("p");
-      t4 = text("Current version: ");
-      t5 = text(
-        /*version*/
-        ctx[1]
-      );
-      p3 = element("p");
-      footer = element("footer");
       div0 = element("div");
-      div0.innerHTML = `<img class="pt-sm white svelte-zy82bb" src="/systems/foundryvtt-final-fantasy/assets/round-table-games-logo.svg" alt="Round Table Games Logo" height="50" width="50" style="fill: white; border: none; width: auto;"/>`;
+      p0 = element("p");
+      i0 = element("i");
+      t0 = text(t0_value);
+      p1 = element("p");
+      i1 = element("i");
+      t1 = text(t1_value);
+      t2 = space();
+      a0 = element("a");
+      a0.textContent = `${localize$1("Setting.DontShowWelcome.IssuesLinkText")} `;
+      p2 = element("p");
+      i2 = element("i");
+      t5 = text(t5_value);
+      t6 = space();
+      a1 = element("a");
+      a1.textContent = `${localize$1("Setting.DontShowWelcome.SponsorLinkText")}`;
+      t8 = text(" or ");
+      a2 = element("a");
+      a2.textContent = "PayPal";
+      p3 = element("p");
+      p3.textContent = `${localize$1("Setting.DontShowWelcome.Disclaimer")}`;
+      div3 = element("div");
       div1 = element("div");
+      input = element("input");
+      div2 = element("div");
+      span = element("span");
+      span.textContent = `${localize$1("Setting.DontShowWelcome.Name")}`;
+      footer = element("footer");
+      div4 = element("div");
+      div4.innerHTML = `<img class="pt-sm white svelte-pscpuo" src="/systems/foundryvtt-final-fantasy/assets/round-table-games-logo.svg" alt="Round Table Games Logo" height="50" width="50" style="fill: white; border: none; width: auto;"/>`;
+      div5 = element("div");
       h4 = element("h4");
       h4.textContent = `${MODULE_TITLE} `;
-      a1 = element("a");
-      a1.textContent = "Round Table Games ©2025";
-      attr(main, "class", "svelte-zy82bb");
-      attr(div0, "class", "flex2 right");
-      attr(a1, "href", "https://www.round-table.games");
-      attr(a1, "class", "svelte-zy82bb");
-      attr(div1, "class", "flex2 left pt-sm");
-      attr(footer, "class", "svelte-zy82bb");
+      a3 = element("a");
+      a3.textContent = "Round Table Games";
+      attr(i0, "class", "fa-solid fa-info-circle mr-sm");
+      attr(p0, "class", "lightest svelte-pscpuo");
+      attr(i1, "class", "fa-solid fa-bug mr-sm");
+      attr(a0, "href", "https://github.com/geoidesic/foundryvtt-final-fantasy/issues");
+      attr(p1, "class", "lighter svelte-pscpuo");
+      attr(i2, "class", "fa-solid fa-heart mr-sm");
+      set_style(i2, "color", "#660000");
+      attr(a1, "href", "https://github.com/sponsors/geoidesic");
+      attr(a2, "href", "https://https://paypal.me/geoidesic");
+      attr(div0, "class", "inset mb-sm svelte-pscpuo");
+      attr(p3, "class", "smallest lightest svelte-pscpuo");
+      attr(input, "type", "checkbox");
+      attr(input, "label", localize$1("Setting.DontShowWelcome.Name"));
+      attr(input, "class", "svelte-pscpuo");
+      attr(div1, "class", "flex0");
+      attr(div2, "class", "flex");
+      attr(div3, "class", "flexrow dont-show justify-vertical mt-sm svelte-pscpuo");
+      attr(div3, "data-tooltip", localize$1("Setting.DontShowWelcome.Hint"));
+      attr(main, "class", "svelte-pscpuo");
+      attr(div4, "class", "flex2 right");
+      attr(a3, "href", "https://www.round-table.games");
+      attr(a3, "class", "svelte-pscpuo");
+      attr(div5, "class", "flex2 left pt-sm");
+      attr(footer, "class", "svelte-pscpuo");
     },
     m(target, anchor) {
       insert(target, main, anchor);
-      append(main, p0);
-      append(main, p1);
-      append(main, p2);
-      append(p2, t4);
+      append(main, div0);
+      append(div0, p0);
+      append(p0, i0);
+      append(p0, t0);
+      append(div0, p1);
+      append(p1, i1);
+      append(p1, t1);
+      append(p1, t2);
+      append(p1, a0);
+      append(div0, p2);
+      append(p2, i2);
       append(p2, t5);
+      append(p2, t6);
+      append(p2, a1);
+      append(p2, t8);
+      append(p2, a2);
       append(main, p3);
+      append(main, div3);
+      append(div3, div1);
+      append(div1, input);
+      input.checked = /*dontShowWelcome*/
+      ctx[1];
+      append(div3, div2);
+      append(div2, span);
       insert(target, footer, anchor);
-      append(footer, div0);
-      append(footer, div1);
-      append(div1, h4);
-      append(div1, a1);
+      append(footer, div4);
+      append(footer, div5);
+      append(div5, h4);
+      append(div5, a3);
+      if (!mounted) {
+        dispose = [
+          listen(
+            input,
+            "change",
+            /*handleChange*/
+            ctx[2]
+          ),
+          listen(
+            input,
+            "change",
+            /*input_change_handler*/
+            ctx[5]
+          )
+        ];
+        mounted = true;
+      }
     },
     p(ctx2, dirty) {
-      if (dirty & /*version*/
-      2) set_data(
-        t5,
-        /*version*/
-        ctx2[1]
-      );
+      if (dirty & /*dontShowWelcome*/
+      2) {
+        input.checked = /*dontShowWelcome*/
+        ctx2[1];
+      }
     },
     d(detaching) {
       if (detaching) {
         detach(main);
         detach(footer);
       }
+      mounted = false;
+      run_all(dispose);
     }
   };
 }
+__name(create_default_slot, "create_default_slot");
 function create_fragment(ctx) {
   let applicationshell;
   let updating_elementRoot;
   let current;
   function applicationshell_elementRoot_binding(value) {
-    ctx[3](value);
+    ctx[6](value);
   }
+  __name(applicationshell_elementRoot_binding, "applicationshell_elementRoot_binding");
   let applicationshell_props = {
     $$slots: { default: [create_default_slot] },
     $$scope: { ctx }
@@ -17324,8 +17838,8 @@ function create_fragment(ctx) {
     },
     p(ctx2, [dirty]) {
       const applicationshell_changes = {};
-      if (dirty & /*$$scope, version*/
-      130) {
+      if (dirty & /*$$scope, dontShowWelcome*/
+      258) {
         applicationshell_changes.$$scope = { dirty, ctx: ctx2 };
       }
       if (!updating_elementRoot && dirty & /*elementRoot*/
@@ -17351,35 +17865,58 @@ function create_fragment(ctx) {
     }
   };
 }
+__name(create_fragment, "create_fragment");
 function instance($$self, $$props, $$invalidate) {
+  let dontShowWelcome2;
   let { elementRoot = void 0 } = $$props;
   let { version: version2 = void 0 } = $$props;
   const application = getContext("#external").application;
+  const handleChange = /* @__PURE__ */ __name((event) => {
+    game.settings.set(MODULE_ID, "dontShowWelcome", event.target.checked);
+  }, "handleChange");
   let draggable2 = application.reactive.draggable;
   draggable2 = true;
   onMount(async () => {
   });
+  function input_change_handler() {
+    dontShowWelcome2 = this.checked;
+    $$invalidate(1, dontShowWelcome2);
+  }
+  __name(input_change_handler, "input_change_handler");
   function applicationshell_elementRoot_binding(value) {
     elementRoot = value;
     $$invalidate(0, elementRoot);
   }
+  __name(applicationshell_elementRoot_binding, "applicationshell_elementRoot_binding");
   $$self.$$set = ($$props2) => {
     if ("elementRoot" in $$props2) $$invalidate(0, elementRoot = $$props2.elementRoot);
-    if ("version" in $$props2) $$invalidate(1, version2 = $$props2.version);
+    if ("version" in $$props2) $$invalidate(3, version2 = $$props2.version);
   };
   $$self.$$.update = () => {
     if ($$self.$$.dirty & /*draggable*/
-    4) {
+    16) {
       application.reactive.draggable = draggable2;
     }
   };
-  game.settings.get(MODULE_ID, "dontShowWelcome");
-  return [elementRoot, version2, draggable2, applicationshell_elementRoot_binding];
+  $$invalidate(1, dontShowWelcome2 = game.settings.get(MODULE_ID, "dontShowWelcome"));
+  return [
+    elementRoot,
+    dontShowWelcome2,
+    handleChange,
+    version2,
+    draggable2,
+    input_change_handler,
+    applicationshell_elementRoot_binding
+  ];
 }
+__name(instance, "instance");
 class WelcomeAppShell extends SvelteComponent {
+  static {
+    __name(this, "WelcomeAppShell");
+  }
   constructor(options) {
     super();
-    init$1(this, options, instance, create_fragment, safe_not_equal, { elementRoot: 0, version: 1 });
+    init$1(this, options, instance, create_fragment, safe_not_equal, { elementRoot: 0, version: 3 });
   }
   get elementRoot() {
     return this.$$.ctx[0];
@@ -17389,7 +17926,7 @@ class WelcomeAppShell extends SvelteComponent {
     flush();
   }
   get version() {
-    return this.$$.ctx[1];
+    return this.$$.ctx[3];
   }
   set version(version2) {
     this.$$set({ version: version2 });
@@ -17397,6 +17934,9 @@ class WelcomeAppShell extends SvelteComponent {
   }
 }
 class ApplicationState {
+  static {
+    __name(this, "ApplicationState");
+  }
   /** @type {T} */
   #application;
   /** @type {Map<string, ApplicationStateData>} */
@@ -17631,6 +18171,9 @@ class ApplicationState {
   }
 }
 class GetSvelteData {
+  static {
+    __name(this, "GetSvelteData");
+  }
   /** @type {import('./types').MountedAppShell[] | null[]} */
   #applicationShellHolder;
   /** @type {import('./types').SvelteData[]} */
@@ -17742,22 +18285,25 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
   function isSimpleDeriver(deriver) {
     return deriver.length < 2;
   }
+  __name(isSimpleDeriver, "isSimpleDeriver");
   function storageReadable(key, value, start) {
     return {
       subscribe: storageWritable(key, value, start).subscribe
     };
   }
+  __name(storageReadable, "storageReadable");
   function storageWritable(key, value, start) {
     function wrap_start(ogSet) {
-      return start(function wrap_set(new_value) {
+      return start(/* @__PURE__ */ __name(function wrap_set(new_value) {
         if (storage) {
           storage.setItem(key, serialize(new_value));
         }
         return ogSet(new_value);
-      }, function wrap_update(fn) {
+      }, "wrap_set"), /* @__PURE__ */ __name(function wrap_update(fn) {
         set2(fn(get_store_value(ogStore)));
-      });
+      }, "wrap_update"));
     }
+    __name(wrap_start, "wrap_start");
     if (storage) {
       const storageValue = storage.getItem(key);
       try {
@@ -17775,14 +18321,18 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
       }
       ogStore.set(new_value);
     }
+    __name(set2, "set");
     function update2(fn) {
       set2(fn(get_store_value(ogStore)));
     }
+    __name(update2, "update");
     function subscribe2(run2, invalidate) {
       return ogStore.subscribe(run2, invalidate);
     }
+    __name(subscribe2, "subscribe");
     return { set: set2, update: update2, subscribe: subscribe2 };
   }
+  __name(storageWritable, "storageWritable");
   function storageDerived(key, stores, fn, initial_value) {
     const single = !Array.isArray(stores);
     const stores_array = single ? [stores] : stores;
@@ -17797,7 +18347,7 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
       const values = [];
       let pending = 0;
       let cleanup;
-      const sync = () => {
+      const sync = /* @__PURE__ */ __name(() => {
         if (pending) {
           return;
         }
@@ -17811,7 +18361,7 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
             cleanup = result;
           }
         }
-      };
+      }, "sync");
       const unsubscribers = stores_array.map((store, i) => store.subscribe((value) => {
         values[i] = value;
         pending &= ~(1 << i);
@@ -17823,12 +18373,13 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
       }));
       inited = true;
       sync();
-      return function stop() {
+      return /* @__PURE__ */ __name(function stop() {
         unsubscribers.forEach((unsubscriber) => unsubscriber());
         cleanup?.();
-      };
+      }, "stop");
     });
   }
+  __name(storageDerived, "storageDerived");
   return {
     readable: storageReadable,
     writable: storageWritable,
@@ -17838,8 +18389,12 @@ function storeGenerator({ storage, serialize = JSON.stringify, deserialize = JSO
     deserialize
   };
 }
+__name(storeGenerator, "storeGenerator");
 const sessionStores = storeGenerator({ storage: globalThis?.sessionStorage });
 class TJSWebStorage {
+  static {
+    __name(this, "TJSWebStorage");
+  }
   /** @type {import('./').StorageStores} */
   #storageStores;
   /**
@@ -18001,11 +18556,17 @@ class TJSWebStorage {
   }
 }
 class TJSSessionStorage extends TJSWebStorage {
+  static {
+    __name(this, "TJSSessionStorage");
+  }
   constructor() {
     super(sessionStores);
   }
 }
 class SvelteReactive {
+  static {
+    __name(this, "SvelteReactive");
+  }
   /**
    * @type {import('../SvelteApplication').SvelteApplication}
    */
@@ -18552,6 +19113,7 @@ function isApplicationShell(component) {
   }
   return compHasContract || protoHasContract;
 }
+__name(isApplicationShell, "isApplicationShell");
 function loadSvelteConfig({ app, template, config, elementRootUpdate } = {}) {
   const svelteOptions = isObject(config.options) ? config.options : {};
   let target;
@@ -18628,7 +19190,11 @@ Offending config:
   const injectHTML = !(config.target instanceof HTMLElement);
   return { config: svelteConfig, component, element: element2, injectHTML };
 }
+__name(loadSvelteConfig, "loadSvelteConfig");
 class TJSAppIndex {
+  static {
+    __name(this, "TJSAppIndex");
+  }
   /**
    * Stores all visible / rendered apps.
    *
@@ -18689,6 +19255,9 @@ class TJSAppIndex {
   }
 }
 class SvelteApplication extends Application {
+  static {
+    __name(this, "SvelteApplication");
+  }
   /**
    * Stores the first mounted component which follows the application shell contract.
    *
@@ -18773,12 +19342,12 @@ class SvelteApplication extends Application {
     });
     delete this.position;
     Object.defineProperty(this, "position", {
-      get: () => this.#position,
-      set: (position) => {
+      get: /* @__PURE__ */ __name(() => this.#position, "get"),
+      set: /* @__PURE__ */ __name((position) => {
         if (isObject(position)) {
           this.#position.set(position);
         }
-      }
+      }, "set")
     });
     this.#reactive = new SvelteReactive(this);
     this.#stores = this.#reactive.initialize();
@@ -19007,7 +19576,7 @@ class SvelteApplication extends Application {
       );
     }
     this.reactive.updateHeaderButtons();
-    const elementRootUpdate = () => {
+    const elementRootUpdate = /* @__PURE__ */ __name(() => {
       let cntr = 0;
       return (elementRoot) => {
         if (elementRoot !== null && elementRoot !== void 0 && cntr++ > 0) {
@@ -19016,7 +19585,7 @@ class SvelteApplication extends Application {
         }
         return false;
       };
-    };
+    }, "elementRootUpdate");
     if (isIterable(this.options.svelte)) {
       for (const svelteConfig of this.options.svelte) {
         const svelteData = loadSvelteConfig({
@@ -19376,6 +19945,9 @@ class SvelteApplication extends Application {
   }
 }
 class ManagedPromise {
+  static {
+    __name(this, "ManagedPromise");
+  }
   /** @type {boolean} */
   static #logging = false;
   /** @type {{ isProcessing?: boolean, promise?: Promise, reject: Function, resolve: Function }} */
@@ -19532,6 +20104,9 @@ class ManagedPromise {
   }
 }
 class TJSDialogData {
+  static {
+    __name(this, "TJSDialogData");
+  }
   /**
    * @type {import('../../index.js').SvelteApplication}
    */
@@ -19893,6 +20468,9 @@ class TJSDialogData {
   }
 }
 class TJSDialog extends SvelteApplication {
+  static {
+    __name(this, "TJSDialog");
+  }
   /** @type {TJSDialogData} */
   #data;
   /** @type {ManagedPromise} */
@@ -19908,7 +20486,7 @@ class TJSDialog extends SvelteApplication {
     this.#data = new TJSDialogData(this);
     this.#data.replace(data);
     Object.defineProperty(this.svelte, "dialogComponent", {
-      get: () => this.svelte?.applicationShell?.dialogComponent
+      get: /* @__PURE__ */ __name(() => this.svelte?.applicationShell?.dialogComponent, "get")
     });
   }
   /**
@@ -19927,12 +20505,12 @@ class TJSDialog extends SvelteApplication {
         class: DialogShell,
         intro: true,
         target: document.body,
-        props: function() {
+        props: /* @__PURE__ */ __name(function() {
           return {
             data: this.#data,
             managedPromise: this.#managedPromise
           };
-        }
+        }, "props")
       }
     });
   }
@@ -20062,10 +20640,10 @@ class TJSDialog extends SvelteApplication {
       ...data,
       buttons: deepMerge(mergedButtons, {
         yes: {
-          onPress: (application) => this.#invokeFn(onYes, application, true)
+          onPress: /* @__PURE__ */ __name((application) => this.#invokeFn(onYes, application, true), "onPress")
         },
         no: {
-          onPress: (application) => this.#invokeFn(onNo, application, false)
+          onPress: /* @__PURE__ */ __name((application) => this.#invokeFn(onNo, application, false), "onPress")
         }
       }),
       default: data.default ?? "yes"
@@ -20152,7 +20730,7 @@ class TJSDialog extends SvelteApplication {
         ok: {
           icon,
           label,
-          onPress: (application) => this.#invokeFn(onOk, application, true)
+          onPress: /* @__PURE__ */ __name((application) => this.#invokeFn(onOk, application, true), "onPress")
         }
       },
       default: "ok"
@@ -20195,8 +20773,11 @@ Hooks.on("PopOut:close", (app) => {
     app.position.enabled = true;
   }
 });
-const version = "0.0.7";
+const version = "0.0.8";
 class WelcomeApplication extends SvelteApplication {
+  static {
+    __name(this, "WelcomeApplication");
+  }
   /**
    * Default Application options
    *
@@ -20206,13 +20787,13 @@ class WelcomeApplication extends SvelteApplication {
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
       id: `${MODULE_ID}-welcome`,
-      classes: ["<s_SVELTE_HASH_ID>"],
+      classes: [`${MODULE_CODE} welcome`],
       resizable: true,
       minimizable: true,
-      width: 280,
-      height: 300,
+      width: 290,
+      height: 380,
       // headerIcon: 'path/to/img.svg',
-      title: game.i18n.localize(`${MODULE_TITLE} v${version}`),
+      title: game.i18n.localize(`v${version} ${MODULE_TITLE}`),
       svelte: {
         class: WelcomeAppShell,
         target: document.body,
@@ -20232,6 +20813,7 @@ function canvasReady() {
     }
   });
 }
+__name(canvasReady, "canvasReady");
 function ripple({
   duration = 600,
   background = "rgba(255, 255, 255, 0.7)",
@@ -20280,11 +20862,13 @@ function ripple({
         }
       };
     }
+    __name(createRipple, "createRipple");
     function keyHandler(event) {
       if (event?.code === keyCode) {
         createRipple(event);
       }
     }
+    __name(keyHandler, "keyHandler");
     const eventFn = Number.isInteger(debounce) && debounce > 0 ? Timing.debounce(createRipple, debounce) : createRipple;
     const keyEventFn = Number.isInteger(debounce) && debounce > 0 ? Timing.debounce(keyHandler, debounce) : keyHandler;
     for (const event of events) {
@@ -20295,7 +20879,7 @@ function ripple({
       }
     }
     return {
-      destroy: () => {
+      destroy: /* @__PURE__ */ __name(() => {
         for (const event of events) {
           if (["keydown", "keyup"].includes(event)) {
             element2.removeEventListener(event, keyEventFn);
@@ -20303,10 +20887,11 @@ function ripple({
             element2.removeEventListener(event, eventFn);
           }
         }
-      }
+      }, "destroy")
     };
   };
 }
+__name(ripple, "ripple");
 function rippleFocus({ duration = 300, background = "rgba(255, 255, 255, 0.7)", selectors } = {}) {
   return (element2) => {
     const targetEl = typeof selectors === "string" ? element2.querySelector(selectors) : element2.firstChild instanceof HTMLElement ? element2.firstChild : element2;
@@ -20343,6 +20928,7 @@ function rippleFocus({ duration = 300, background = "rgba(255, 255, 255, 0.7)", 
         span = void 0;
       };
     }
+    __name(blurRipple, "blurRipple");
     function focusRipple() {
       if (span instanceof HTMLElement) {
         return;
@@ -20384,23 +20970,29 @@ function rippleFocus({ duration = 300, background = "rgba(255, 255, 255, 0.7)", 
         }
       );
     }
+    __name(focusRipple, "focusRipple");
     function onPointerDown(e) {
       clientX = e.clientX;
       clientY = e.clientY;
     }
+    __name(onPointerDown, "onPointerDown");
     targetEl.addEventListener("pointerdown", onPointerDown);
     targetEl.addEventListener("blur", blurRipple);
     targetEl.addEventListener("focus", focusRipple);
     return {
-      destroy: () => {
+      destroy: /* @__PURE__ */ __name(() => {
         targetEl.removeEventListener("pointerdown", onPointerDown);
         targetEl.removeEventListener("blur", blurRipple);
         targetEl.removeEventListener("focus", focusRipple);
-      }
+      }, "destroy")
     };
   };
 }
+__name(rippleFocus, "rippleFocus");
 class UIControl {
+  static {
+    __name(this, "UIControl");
+  }
   /** @type {import('./types').TJSSettingsCustomSection[]} */
   #sections = [];
   /** @type {import('./').TJSGameSettings} */
@@ -20498,7 +21090,7 @@ class UIControl {
    */
   create(options) {
     const settings = this.#parseSettings(options);
-    const destroy = () => this.#destroy(settings);
+    const destroy = /* @__PURE__ */ __name(() => this.#destroy(settings), "destroy");
     return {
       ...settings,
       destroy
@@ -20724,6 +21316,9 @@ class UIControl {
   }
 }
 class TJSGameSettings {
+  static {
+    __name(this, "TJSGameSettings");
+  }
   /** @type {string} */
   #namespace;
   /** @type {GameSettingData[]} */
@@ -20903,24 +21498,24 @@ class TJSGameSettings {
     } else if (typeof options.onChange === "function") {
       onchangeFunctions.push(options.onChange);
     }
-    const onChange = (value) => {
+    const onChange = /* @__PURE__ */ __name((value) => {
       for (const entry of onchangeFunctions) {
         entry(value);
       }
-    };
+    }, "onChange");
     globalThis.game.settings.register(namespace, key, { ...options, config: foundryConfig, onChange });
     const targetStore = store ? store : this.#getStore(key, globalThis.game.settings.get(namespace, key));
     if (store) {
       this.#stores.set(key, targetStore);
       store.set(globalThis.game.settings.get(namespace, key));
     }
-    const storeHandler = async (value) => {
+    const storeHandler = /* @__PURE__ */ __name(async (value) => {
       if (!gateSet && globalThis.game.settings.get(namespace, key) !== value) {
         gateSet = true;
         await globalThis.game.settings.set(namespace, key, value);
       }
       gateSet = false;
-    };
+    }, "storeHandler");
     subscribeIgnoreFirst(targetStore, storeHandler);
     this.#settings.push({
       namespace,
@@ -20974,6 +21569,7 @@ function registerSettings(app) {
   dontShowWelcome();
   combatStartSound();
 }
+__name(registerSettings, "registerSettings");
 function dontShowWelcome() {
   gameSettings.register({
     namespace: MODULE_ID,
@@ -20988,6 +21584,7 @@ function dontShowWelcome() {
     }
   });
 }
+__name(dontShowWelcome, "dontShowWelcome");
 function combatStartSound() {
   gameSettings.register({
     namespace: MODULE_ID,
@@ -21003,6 +21600,7 @@ function combatStartSound() {
     }
   });
 }
+__name(combatStartSound, "combatStartSound");
 function setupEffectsProcessors() {
   game.system.log.o("[EFFECTS] Setting up effect processors");
   Hooks.on("FFXIV.processAdditionalBaseDamageFromItem", async (event) => {
@@ -21050,6 +21648,7 @@ function setupEffectsProcessors() {
     await processor.onAbilityUse(event);
   });
 }
+__name(setupEffectsProcessors, "setupEffectsProcessors");
 function init() {
   Hooks.once("init", async (a, b, c) => {
     game.system.log.i(`Starting module ${MODULE_ID}`);
@@ -21061,6 +21660,7 @@ function init() {
     Hooks.call("FFXIVA.initIsComplete");
   });
 }
+__name(init, "init");
 const hooks = {
   preDeleteChatMessage,
   targetToken,
@@ -21085,6 +21685,7 @@ function onDamage() {
     await durationManager.onDamage(event);
   });
 }
+__name(onDamage, "onDamage");
 function onAbilityUse() {
   console.log("[FFXIVA] | [HOOKS] Registering onAbilityUse hook");
   Hooks.on("FFXIVA.onAbilityUse", async (event) => {
@@ -21095,6 +21696,7 @@ function onAbilityUse() {
     });
   });
 }
+__name(onAbilityUse, "onAbilityUse");
 CONFIG.Combat.documentClass = FFCombat;
 CONFIG.Actor.documentClass = FFXIVActor;
 CONFIG.FFXIV.RollGuards = RollGuards;
