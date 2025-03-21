@@ -21,7 +21,7 @@ export default class WelcomeApplication extends SvelteApplication
          resizable: true,
          minimizable: true,
          width: 290,
-         height: 360,
+         height: 355,
          headerIcon: 'systems/foundryvtt-final-fantasy/assets/aardvark-claw.webp',
          title: game.i18n.localize(`v${version} ${MODULE_TITLE}`),
          svelte: {

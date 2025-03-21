@@ -86,7 +86,7 @@
     background-color: #000
     position: absolute
     left: 0
-    bottom: 67px
+    bottom: 60px
     width: 100%
     color: #9988bb
   footer
@@ -100,7 +100,7 @@
     background-color: #333
     color: white
     text-align: center
-    padding: 1em 1em 1em 1em
+    padding: 0.5em 1em 1em 1em
     font-size: 0.8em
     z-index: 3
     line-height: 1.5em

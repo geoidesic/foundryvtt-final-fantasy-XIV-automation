@@ -2,7 +2,7 @@
   "id": "foundryvtt-final-fantasy-XIV-automation",
   "title": "Final Fantasy XIV Automation",
   "description": "Automation for Final Fantasy XIV",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "styles": [
     "dist/style.css"
   ],
