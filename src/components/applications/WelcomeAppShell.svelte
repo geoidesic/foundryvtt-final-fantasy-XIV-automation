@@ -103,7 +103,7 @@
     padding: 0.5em 1em 1em 1em
     font-size: 0.8em
     z-index: 3
-    line-height: 1.5em
+    line-height: 1.25em
     a
       color: white
       text-decoration: underline

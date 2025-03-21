@@ -17708,35 +17708,35 @@ function create_default_slot(ctx) {
       h4 = element("h4");
       h4.textContent = `${MODULE_TITLE} `;
       div2 = element("div");
-      div2.innerHTML = `<span>Foundry conversion by </span><a href="https://www.aardvark.games" class="svelte-19h8ang">Aardvark Games</a>`;
+      div2.innerHTML = `<span>Foundry conversion by </span><a href="https://www.aardvark.games" class="svelte-187ua62">Aardvark Games</a>`;
       div6 = element("div");
       div4 = element("div");
       input = element("input");
       div5 = element("div");
       span1 = element("span");
       span1.textContent = `${localize$1("Setting.DontShowWelcome.Name")}`;
-      attr(i0, "class", "fa-solid fa-info-circle mr-sm svelte-19h8ang");
-      attr(p0, "class", "lightest svelte-19h8ang");
-      attr(i1, "class", "fa-solid fa-bug mr-sm svelte-19h8ang");
+      attr(i0, "class", "fa-solid fa-info-circle mr-sm svelte-187ua62");
+      attr(p0, "class", "lightest svelte-187ua62");
+      attr(i1, "class", "fa-solid fa-bug mr-sm svelte-187ua62");
       attr(a0, "href", "https://github.com/geoidesic/foundryvtt-final-fantasy/issues");
-      attr(p1, "class", "lighter svelte-19h8ang");
-      attr(i2, "class", "fa-solid fa-heart mr-sm svelte-19h8ang");
+      attr(p1, "class", "lighter svelte-187ua62");
+      attr(i2, "class", "fa-solid fa-heart mr-sm svelte-187ua62");
       set_style(i2, "color", "#660000");
       attr(a1, "href", "https://github.com/sponsors/geoidesic");
       attr(a2, "href", "https://https://paypal.me/geoidesic");
-      attr(div0, "class", "inset mb-sm svelte-19h8ang");
-      attr(p3, "class", "smallest lightest svelte-19h8ang");
-      attr(main, "class", "relative svelte-19h8ang");
+      attr(div0, "class", "inset mb-sm svelte-187ua62");
+      attr(p3, "class", "smallest lightest svelte-187ua62");
+      attr(main, "class", "relative svelte-187ua62");
       attr(div1, "class", "right");
       attr(div2, "class", "smaller");
       attr(div3, "class", "left pt-sm");
-      attr(footer, "class", "svelte-19h8ang");
+      attr(footer, "class", "svelte-187ua62");
       attr(input, "type", "checkbox");
       attr(input, "label", localize$1("Setting.DontShowWelcome.Name"));
-      attr(input, "class", "svelte-19h8ang");
+      attr(input, "class", "svelte-187ua62");
       attr(div4, "class", "flex0");
       attr(div5, "class", "flex");
-      attr(div6, "class", "flexrow dont-show justify-vertical mt-sm svelte-19h8ang");
+      attr(div6, "class", "flexrow dont-show justify-vertical mt-sm svelte-187ua62");
       attr(div6, "data-tooltip", localize$1("Setting.DontShowWelcome.Hint"));
     },
     m(target, anchor) {
@@ -20773,7 +20773,7 @@ Hooks.on("PopOut:close", (app) => {
     app.position.enabled = true;
   }
 });
-const version = "0.0.12";
+const version = "0.0.13";
 class WelcomeApplication extends SvelteApplication {
   static {
     __name(this, "WelcomeApplication");
