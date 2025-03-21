@@ -90,7 +90,6 @@
     width: 100%
     color: #9988bb
   footer
-    border-top: 8px ridge var(--border-shadow)
     display: grid
     grid-column-gap: 1rem
     grid-template-columns: 1fr 3.5fr
@@ -101,7 +100,7 @@
     background-color: #333
     color: white
     text-align: center
-    padding: 1em
+    padding: 1em 1em 1em 1em
     font-size: 0.8em
     z-index: 3
     line-height: 1.5em
