@@ -17703,7 +17703,7 @@ function create_default_slot(ctx) {
       p3.textContent = `${localize$1("Setting.DontShowWelcome.Disclaimer")}`;
       footer = element("footer");
       div1 = element("div");
-      div1.innerHTML = `<img class="pt-sm mr-md" src="/systems/foundryvtt-final-fantasy/assets/aardvark-logo.webp" alt="Aardvark Logo" height="40" width="40" style="fill: white; border: none; width: auto;"/>`;
+      div1.innerHTML = `<img class="pt-sm" src="/systems/foundryvtt-final-fantasy/assets/aardvark-logo.webp" alt="Aardvark Logo" height="40" width="40" style="fill: white; border: none; width: auto;"/>`;
       div3 = element("div");
       h4 = element("h4");
       h4.textContent = `${MODULE_TITLE} `;
@@ -20773,7 +20773,7 @@ Hooks.on("PopOut:close", (app) => {
     app.position.enabled = true;
   }
 });
-const version = "0.0.13";
+const version = "0.0.14";
 class WelcomeApplication extends SvelteApplication {
   static {
     __name(this, "WelcomeApplication");

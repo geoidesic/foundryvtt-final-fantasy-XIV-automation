@@ -45,7 +45,7 @@
       p.smallest.lightest {localize('Setting.DontShowWelcome.Disclaimer')}
     footer
       .right
-        img.pt-sm.mr-md(src="/systems/foundryvtt-final-fantasy/assets/aardvark-logo.webp" alt="Aardvark Logo" height="40" width="40" style="fill: white; border: none; width: auto;")
+        img.pt-sm(src="/systems/foundryvtt-final-fantasy/assets/aardvark-logo.webp" alt="Aardvark Logo" height="40" width="40" style="fill: white; border: none; width: auto;")
       .left.pt-sm
         h4 {MODULE_TITLE} 
         .smaller 
