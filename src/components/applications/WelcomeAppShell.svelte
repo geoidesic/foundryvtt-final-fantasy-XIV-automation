@@ -30,7 +30,7 @@
 
 <template lang="pug">
   ApplicationShell(bind:elementRoot)
-    main
+    main.relative
       .inset.mb-sm
         p.lightest 
           i.fa-solid.fa-info-circle.mr-sm
@@ -43,17 +43,19 @@
           | {localize('Setting.DontShowWelcome.Support')} <a href='https://github.com/sponsors/geoidesic'> {localize('Setting.DontShowWelcome.SponsorLinkText')} </a> or <a href='https://https://paypal.me/geoidesic'>PayPal</a>
       
       p.smallest.lightest {localize('Setting.DontShowWelcome.Disclaimer')}
-      .flexrow.dont-show.justify-vertical.mt-sm(data-tooltip="{localize('Setting.DontShowWelcome.Hint')}")
-        .flex0
-          input(type="checkbox" on:change="{handleChange}" label="{localize('Setting.DontShowWelcome.Name')}" bind:checked="{dontShowWelcome}") 
-        .flex
-          span {localize('Setting.DontShowWelcome.Name')}
     footer
-      .flex2.right
-        img.pt-sm.white(src="/systems/foundryvtt-final-fantasy/assets/round-table-games-logo.svg" alt="Round Table Games Logo" height="50" width="50" style="fill: white; border: none; width: auto;")
-      .flex2.left.pt-sm
+      .right
+        img.pt-sm.mr-md(src="/systems/foundryvtt-final-fantasy/assets/aardvark-logo.webp" alt="Aardvark Logo" height="40" width="40" style="fill: white; border: none; width: auto;")
+      .left.pt-sm
         h4 {MODULE_TITLE} 
-        a(href="https://www.round-table.games") Round Table Games
+        .smaller 
+          span Foundry conversion by 
+          a(href="https://www.aardvark.games") Aardvark Games
+    .flexrow.dont-show.justify-vertical.mt-sm(data-tooltip="{localize('Setting.DontShowWelcome.Hint')}")
+      .flex0
+        input(type="checkbox" on:change="{handleChange}" label="{localize('Setting.DontShowWelcome.Name')}" bind:checked="{dontShowWelcome}") 
+      .flex
+        span {localize('Setting.DontShowWelcome.Name')}
 
 </template>
 
@@ -64,7 +66,9 @@
     margin-bottom: 4em
     .inset
       @include mixins.inset
-
+      padding: 0.5em 1em
+    i
+      margin-right: 0.5em
 
   .white
     filter: invert(1)
@@ -79,11 +83,17 @@
     font-size: smaller
     input
       cursor: pointer
+    background-color: #000
+    position: absolute
+    left: 0
+    bottom: 67px
+    width: 100%
+    color: #9988bb
   footer
     border-top: 8px ridge var(--border-shadow)
     display: grid
     grid-column-gap: 1rem
-    grid-template-columns: 1fr 1.5fr
+    grid-template-columns: 1fr 3.5fr
     position: fixed
     bottom: 0
     left: 0
@@ -94,8 +104,7 @@
     padding: 1em
     font-size: 0.8em
     z-index: 3
-    img
-      min-width: 70px
+    line-height: 1.5em
     a
       color: white
       text-decoration: underline

@@ -1,7 +1,7 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import resolve from "@rollup/plugin-node-resolve"; // This resolves NPM modules from node_modules.
 import preprocess from "svelte-preprocess";
-import { MODULE_ID, SYSTEM_CODE } from "./src/helpers/constants.js";
+import { MODULE_ID } from "./src/helpers/constants.js";
 import { postcssConfig, terserConfig, typhonjsRuntime } from "#runtime/rollup";
 import * as path from "path";
 import sass from 'sass'; // Import sass for svelte preprocessing

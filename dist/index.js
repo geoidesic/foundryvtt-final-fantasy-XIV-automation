@@ -17665,16 +17665,16 @@ function create_default_slot(ctx) {
   let t8;
   let a2;
   let p3;
-  let div3;
-  let div1;
-  let input;
-  let div2;
-  let span;
   let footer;
-  let div4;
-  let div5;
+  let div1;
+  let div3;
   let h4;
-  let a3;
+  let div2;
+  let div6;
+  let div4;
+  let input;
+  let div5;
+  let span1;
   let mounted;
   let dispose;
   return {
@@ -17701,44 +17701,43 @@ function create_default_slot(ctx) {
       a2.textContent = "PayPal";
       p3 = element("p");
       p3.textContent = `${localize$1("Setting.DontShowWelcome.Disclaimer")}`;
-      div3 = element("div");
-      div1 = element("div");
-      input = element("input");
-      div2 = element("div");
-      span = element("span");
-      span.textContent = `${localize$1("Setting.DontShowWelcome.Name")}`;
       footer = element("footer");
-      div4 = element("div");
-      div4.innerHTML = `<img class="pt-sm white svelte-pscpuo" src="/systems/foundryvtt-final-fantasy/assets/round-table-games-logo.svg" alt="Round Table Games Logo" height="50" width="50" style="fill: white; border: none; width: auto;"/>`;
-      div5 = element("div");
+      div1 = element("div");
+      div1.innerHTML = `<img class="pt-sm mr-md" src="/systems/foundryvtt-final-fantasy/assets/aardvark-logo.webp" alt="Aardvark Logo" height="40" width="40" style="fill: white; border: none; width: auto;"/>`;
+      div3 = element("div");
       h4 = element("h4");
       h4.textContent = `${MODULE_TITLE} `;
-      a3 = element("a");
-      a3.textContent = "Round Table Games";
-      attr(i0, "class", "fa-solid fa-info-circle mr-sm");
-      attr(p0, "class", "lightest svelte-pscpuo");
-      attr(i1, "class", "fa-solid fa-bug mr-sm");
+      div2 = element("div");
+      div2.innerHTML = `<span>Foundry conversion by </span><a href="https://www.aardvark.games" class="svelte-1kr3euh">Aardvark Games</a>`;
+      div6 = element("div");
+      div4 = element("div");
+      input = element("input");
+      div5 = element("div");
+      span1 = element("span");
+      span1.textContent = `${localize$1("Setting.DontShowWelcome.Name")}`;
+      attr(i0, "class", "fa-solid fa-info-circle mr-sm svelte-1kr3euh");
+      attr(p0, "class", "lightest svelte-1kr3euh");
+      attr(i1, "class", "fa-solid fa-bug mr-sm svelte-1kr3euh");
       attr(a0, "href", "https://github.com/geoidesic/foundryvtt-final-fantasy/issues");
-      attr(p1, "class", "lighter svelte-pscpuo");
-      attr(i2, "class", "fa-solid fa-heart mr-sm");
+      attr(p1, "class", "lighter svelte-1kr3euh");
+      attr(i2, "class", "fa-solid fa-heart mr-sm svelte-1kr3euh");
       set_style(i2, "color", "#660000");
       attr(a1, "href", "https://github.com/sponsors/geoidesic");
       attr(a2, "href", "https://https://paypal.me/geoidesic");
-      attr(div0, "class", "inset mb-sm svelte-pscpuo");
-      attr(p3, "class", "smallest lightest svelte-pscpuo");
+      attr(div0, "class", "inset mb-sm svelte-1kr3euh");
+      attr(p3, "class", "smallest lightest svelte-1kr3euh");
+      attr(main, "class", "relative svelte-1kr3euh");
+      attr(div1, "class", "right");
+      attr(div2, "class", "smaller");
+      attr(div3, "class", "left pt-sm");
+      attr(footer, "class", "svelte-1kr3euh");
       attr(input, "type", "checkbox");
       attr(input, "label", localize$1("Setting.DontShowWelcome.Name"));
-      attr(input, "class", "svelte-pscpuo");
-      attr(div1, "class", "flex0");
-      attr(div2, "class", "flex");
-      attr(div3, "class", "flexrow dont-show justify-vertical mt-sm svelte-pscpuo");
-      attr(div3, "data-tooltip", localize$1("Setting.DontShowWelcome.Hint"));
-      attr(main, "class", "svelte-pscpuo");
-      attr(div4, "class", "flex2 right");
-      attr(a3, "href", "https://www.round-table.games");
-      attr(a3, "class", "svelte-pscpuo");
-      attr(div5, "class", "flex2 left pt-sm");
-      attr(footer, "class", "svelte-pscpuo");
+      attr(input, "class", "svelte-1kr3euh");
+      attr(div4, "class", "flex0");
+      attr(div5, "class", "flex");
+      attr(div6, "class", "flexrow dont-show justify-vertical mt-sm svelte-1kr3euh");
+      attr(div6, "data-tooltip", localize$1("Setting.DontShowWelcome.Hint"));
     },
     m(target, anchor) {
       insert(target, main, anchor);
@@ -17759,18 +17758,18 @@ function create_default_slot(ctx) {
       append(p2, t8);
       append(p2, a2);
       append(main, p3);
-      append(main, div3);
-      append(div3, div1);
-      append(div1, input);
+      insert(target, footer, anchor);
+      append(footer, div1);
+      append(footer, div3);
+      append(div3, h4);
+      append(div3, div2);
+      insert(target, div6, anchor);
+      append(div6, div4);
+      append(div4, input);
       input.checked = /*dontShowWelcome*/
       ctx[1];
-      append(div3, div2);
-      append(div2, span);
-      insert(target, footer, anchor);
-      append(footer, div4);
-      append(footer, div5);
-      append(div5, h4);
-      append(div5, a3);
+      append(div6, div5);
+      append(div5, span1);
       if (!mounted) {
         dispose = [
           listen(
@@ -17800,6 +17799,7 @@ function create_default_slot(ctx) {
       if (detaching) {
         detach(main);
         detach(footer);
+        detach(div6);
       }
       mounted = false;
       run_all(dispose);
@@ -20773,7 +20773,7 @@ Hooks.on("PopOut:close", (app) => {
     app.position.enabled = true;
   }
 });
-const version = "0.0.8";
+const version = "0.0.9";
 class WelcomeApplication extends SvelteApplication {
   static {
     __name(this, "WelcomeApplication");
@@ -20791,8 +20791,8 @@ class WelcomeApplication extends SvelteApplication {
       resizable: true,
       minimizable: true,
       width: 290,
-      height: 380,
-      // headerIcon: 'path/to/img.svg',
+      height: 360,
+      headerIcon: "systems/foundryvtt-final-fantasy/assets/aardvark-claw.webp",
       title: game.i18n.localize(`v${version} ${MODULE_TITLE}`),
       svelte: {
         class: WelcomeAppShell,
