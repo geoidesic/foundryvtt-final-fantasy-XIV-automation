@@ -75,21 +75,25 @@ export default class RollCalcActor extends CONFIG.FFXIV.RollCalc {
    * @param {Object} [options={}] - Additional options
    */
   async abilityAction(item, options = {}) {
-    console.log("[FFXIVA] | [ROLL CALC] abilityAction call stack:", {
-      stack: new Error().stack,
-      itemName: item?.name,
-      options
-    });
 
     try {
-      // Early return if guards fail
-      if (!(await this.GuardManager.handleGuards(item, [
-        'isAction', 'hasNoUnappliedDamage', 'isActorsTurn', 
-        'isReaction', 'targetsMatchActionIntent', 'hasRequiredEffects',
-        'hasAvailableActionSlot', 'hasRemainingUses','meetsMPCost', 'hasModifiers',
-        
-      ]))) {
-        return;
+      game.system.log.d("game.combat?.started", game.combat?.started);
+      // Some guards only apply to combat
+      if (!game.combat?.started) {
+        if (!(await this.GuardManager.handleGuards(item, [
+          'isAction', 'hasModifiers'
+        ]))) {
+          return;
+        }
+      } else {
+        // Early return if guards fail
+        if (!(await this.GuardManager.handleGuards(item, [
+          'isAction', 'hasNoUnappliedDamage', 'isActorsTurn', 
+          'isReaction', 'targetsMatchActionIntent', 'hasRequiredEffects',
+          'hasAvailableActionSlot', 'hasRemainingUses','meetsMPCost', 'hasModifiers', 
+        ]))) {
+          return;
+        }
       }
 
       // Get the modifiers from the guard
