@@ -75,7 +75,7 @@ export default class RollCalcActor extends CONFIG.FFXIV.RollCalc {
    * @param {Object} [options={}] - Additional options
    */
   async abilityAction(item, options = {}) {
-
+    game.system.log.d("FFXIV.RollCalcActor.abilityAction")
     try {
       game.system.log.d("game.combat?.started", game.combat?.started);
       // Some guards only apply to combat
@@ -133,9 +133,12 @@ export default class RollCalcActor extends CONFIG.FFXIV.RollCalc {
    * @return {Promise<void>} Returns a promise that resolves when the ability has been routed and handled
    */
   _routeAbility(item) {
+    game.system.log.d("_routeAbility", "Routing ability", { item });
     if (item.type === "action") {
+      game.system.log.d("_routeAbility", "Routing action ability");
       this.abilityAction(item);
     } else if (item.type === "trait") {
+      game.system.log.d("_routeAbility", "Routing trait ability");
       this.abilityTrait(item);
     }
   }
