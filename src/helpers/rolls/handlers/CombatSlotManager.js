@@ -18,6 +18,20 @@ export default class CombatSlotManager {
    * @return {Promise<void>} Returns a promise that resolves when the slot is marked
    */
   async markSlotUsed(item, result) {
+    // Skip slot management for NPCs - they don't have action slots
+    game.system.log.d('[SLOT:USAGE] Checking actor type:', { type: this.actor.type, name: this.actor.name });
+    
+    if (this.actor.type === 'NPC') {
+      game.system.log.d('[SLOT:USAGE] Skipping slot management for NPC:', this.actor.name);
+      return;
+    }
+    
+    // Also check if actionState exists at all
+    if (!this.actor.system.actionState) {
+      game.system.log.d('[SLOT:USAGE] No actionState found, skipping slot management for:', this.actor.name);
+      return;
+    }
+
     const { message } = result;
     const actionType = item.system.type || 'primary';
 
