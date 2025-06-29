@@ -2341,6 +2341,15 @@ class CombatSlotManager {
    * @return {Promise<void>} Returns a promise that resolves when the slot is marked
    */
   async markSlotUsed(item, result) {
+    game.system.log.d("[SLOT:USAGE] Checking actor type:", { type: this.actor.type, name: this.actor.name });
+    if (this.actor.type === "NPC") {
+      game.system.log.d("[SLOT:USAGE] Skipping slot management for NPC:", this.actor.name);
+      return;
+    }
+    if (!this.actor.system.actionState) {
+      game.system.log.d("[SLOT:USAGE] No actionState found, skipping slot management for:", this.actor.name);
+      return;
+    }
     const { message } = result;
     const actionType = item.system.type || "primary";
     const state = message?.flags?.[SYSTEM_ID]?.state;
@@ -3816,7 +3825,8 @@ __name(combatStart, "combatStart");
 function preUpdateToken() {
   Hooks.on("preUpdateToken", async (tokenDocument, update2) => {
     const actor = game.actors.get(tokenDocument.actorId);
-    if (actor.statuses.has("focus") && (update2.x || update2.y)) {
+    const limitMovement = game.settings.get(MODULE_ID, "limitMovementWhileFocused");
+    if (!currentOwner.isGM && limitMovement && actor.statuses.has("focus") && (update2.x || update2.y)) {
       delete update2.x;
       delete update2.y;
       ui.notifications.warn(game.i18n.localize("FFXIVA.Errors.CannotMoveWhileFocused"));
@@ -20782,7 +20792,7 @@ Hooks.on("PopOut:close", (app) => {
     app.position.enabled = true;
   }
 });
-const version = "0.0.15";
+const version = "0.0.16";
 class WelcomeApplication extends SvelteApplication {
   static {
     __name(this, "WelcomeApplication");
@@ -21577,6 +21587,7 @@ function registerSettings(app) {
   game.system.log.i(`Building ${MODULE_ID} settings`);
   dontShowWelcome();
   combatStartSound();
+  limitMovementWhileFocused();
 }
 __name(registerSettings, "registerSettings");
 function dontShowWelcome() {
@@ -21610,6 +21621,21 @@ function combatStartSound() {
   });
 }
 __name(combatStartSound, "combatStartSound");
+function limitMovementWhileFocused() {
+  gameSettings.register({
+    namespace: MODULE_ID,
+    key: "limitMovementWhileFocused",
+    options: {
+      name: localize$1("Setting.LimitMovementWhileFocused.Name"),
+      hint: localize$1("Setting.LimitMovementWhileFocused.Hint"),
+      scope: "world",
+      config: true,
+      default: true,
+      type: Boolean
+    }
+  });
+}
+__name(limitMovementWhileFocused, "limitMovementWhileFocused");
 function setupEffectsProcessors() {
   game.system.log.o("[EFFECTS] Setting up effect processors");
   Hooks.on("FFXIV.processAdditionalBaseDamageFromItem", async (event) => {
