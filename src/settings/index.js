@@ -10,6 +10,7 @@ export function registerSettings(app) {
   /** User settings */
   dontShowWelcome()
   combatStartSound()
+  limitMovementWhileFocused()
 
 }
 
@@ -46,6 +47,26 @@ function combatStartSound() {
       default: 'sounds/drums.wav',
       type: String,
       filePicker: "any",
+    }
+  });
+}
+
+/**
+ * Configures whether movement is limited while focused.
+ * When enabled, actors with the 'focus' status effect cannot move.
+ * @return {void}
+ */
+function limitMovementWhileFocused() {
+  gameSettings.register({
+    namespace: MODULE_ID,
+    key: 'limitMovementWhileFocused',
+    options: {
+      name: localize('Setting.LimitMovementWhileFocused.Name'),
+      hint: localize('Setting.LimitMovementWhileFocused.Hint'),
+      scope: 'world',
+      config: true,
+      default: true,
+      type: Boolean
     }
   });
 }
