@@ -1,7 +1,6 @@
 // Import effects directly
 import updateCombat from './updateCombat.js';
 import preDeleteChatMessage from './preDeleteChatMessage.js';
-import targetToken from './targetToken.js';
 import deleteCombat from './deleteCombat.js';
 import combatStart from './combatStart.js';
 import preUpdateToken from './preUpdateToken.js';
@@ -15,7 +14,6 @@ import effects from '~/src/helpers/effects';
 // Export effects as an object
 export default {
   preDeleteChatMessage,
-  targetToken,
   deleteCombat,
   updateCombat,
   combatStart,
@@ -31,7 +29,6 @@ export default {
 
 export { 
   preDeleteChatMessage,
-  targetToken,
   deleteCombat,
   updateCombat,
   combatStart,

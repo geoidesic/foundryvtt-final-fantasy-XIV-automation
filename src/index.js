@@ -28,7 +28,6 @@ hooks.combatStart(); //- combat start sound; reset combatant slots
 hooks.preCreateCombatant();
 hooks.preDeleteChatMessage();
 hooks.preUpdateToken();
-hooks.targetToken();
 hooks.updateCombat();
 hooks.deleteCombat();
 
