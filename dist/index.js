@@ -3706,7 +3706,6 @@ function derived(stores, fn, initial_value) {
   });
 }
 __name(derived, "derived");
-const mappedGameTargets = writable(false);
 const tokenMovement = /* @__PURE__ */ new Map();
 const getTokenMovement$1 = /* @__PURE__ */ __name((tokenId) => tokenMovement.get(tokenId) || 0, "getTokenMovement$1");
 const addTokenMovement = /* @__PURE__ */ __name((tokenId, distance) => {
@@ -3788,24 +3787,6 @@ function preDeleteChatMessage() {
   });
 }
 __name(preDeleteChatMessage, "preDeleteChatMessage");
-function targetToken() {
-  Hooks.on("targetToken", (User, Token) => {
-    const targets = game.user.targets.filter((target) => {
-      if (Token._id === target._id && target == false) return false;
-      return true;
-    }).map((target) => {
-      return {
-        avatar: target.document.texture.src,
-        actorUuid: target.actor.uuid,
-        // map the token actor (not the linked actor)
-        clickedByUserId: User._id,
-        tokenUuid: target.document.uuid
-      };
-    });
-    mappedGameTargets.set(targets);
-  });
-}
-__name(targetToken, "targetToken");
 function deleteCombat() {
   Hooks.on("deleteCombat", async (combat) => {
     await combat.resetCombatantAbilities();
@@ -20792,7 +20773,7 @@ Hooks.on("PopOut:close", (app) => {
     app.position.enabled = true;
   }
 });
-const version = "0.0.16";
+const version = "0.0.17";
 class WelcomeApplication extends SvelteApplication {
   static {
     __name(this, "WelcomeApplication");
@@ -21698,7 +21679,6 @@ function init() {
 __name(init, "init");
 const hooks = {
   preDeleteChatMessage,
-  targetToken,
   deleteCombat,
   updateCombat,
   combatStart,
@@ -21743,7 +21723,6 @@ hooks.combatStart();
 hooks.preCreateCombatant();
 hooks.preDeleteChatMessage();
 hooks.preUpdateToken();
-hooks.targetToken();
 hooks.updateCombat();
 hooks.deleteCombat();
 let totalDistance = 0;
