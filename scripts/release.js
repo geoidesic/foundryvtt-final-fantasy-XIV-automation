@@ -172,6 +172,9 @@ fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 // Update module.json
 const moduleJson = JSON.parse(fs.readFileSync(moduleJsonPath, 'utf8'));
 moduleJson.version = newVersion;
+// Update manifest and download URLs to use the new version
+moduleJson.manifest = `https://github.com/geoidesic/foundryvtt-final-fantasy-XIV-automation/releases/download/v${newVersion}/module.json`;
+moduleJson.download = `https://github.com/geoidesic/foundryvtt-final-fantasy-XIV-automation/releases/download/v${newVersion}/module.zip`;
 fs.writeFileSync(moduleJsonPath, JSON.stringify(moduleJson, null, 2));
 
 
